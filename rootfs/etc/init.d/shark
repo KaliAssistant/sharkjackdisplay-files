@@ -1,0 +1,26 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+
+start() {
+    logger -t Shark "[*] Starting Hak5 Shark Jack Display"
+    if /usr/bin/shark_framework & then
+        echo "$!" > /var/run/shark_framework.pid
+        logger -t Shark "[+] Shark Display Framework started successfully."
+    else
+        logger -t Shark "[!] Failed to start Shark Display Framework."
+        return 1
+    fi
+}
+
+stop() {
+    logger -t Shark "[*] Stopping Hak5 Shark Jack Display"
+    if [ -f /var/run/shark_framework.pid ]; then
+        kill "$(cat /var/run/shark_framework.pid)" 2>/dev/null
+    fi
+    # below should be cleaned up by framework, but just to be sure...
+    killall shark_framework 2>/dev/null
+    rm -f /var/run/shark_framework.pid 2>/dev/null
+    rm -f /tmp/framework_button_listener 2>/dev/null
+    rm -f /tmp/shark_framework.lock 2>/dev/null
+}

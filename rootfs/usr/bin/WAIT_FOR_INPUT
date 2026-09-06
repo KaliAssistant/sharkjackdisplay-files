@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# This script is used to wait for any input, which is then passed to the caller
+
+# Usage
+# WAIT_FOR_INPUT
+
+# Usage checking response:
+# resp="$(WAIT_FOR_INPUT)"
+
+button_input=$(/usr/sbin/payload_button_listener)
+if [ $? = 1 ]; then
+  echo "FAILED TO LISTEN FOR BUTTON" >> /tmp/ERROR.log
+  exit 1
+fi
+case "$button_input" in
+  "switch-middle")
+    echo "switch-middle"
+    ;;
+  "switch-left")
+    echo "switch-left"
+    ;;
+  "switch-right")
+    echo "switch-right"
+    ;;
+  *)
+    ;;
+esac

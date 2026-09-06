@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Using LIST_PICKER this will generate a picker with the options "Recon" "Ping" and "Service", "Ping" will be the default selected
+resp="$(LIST_PICKER "Scan Type" "Recon Ping Service" "Ping")"
+if [ "$resp" != "← Back" ]; then
+  SCREEN_WRITE "Cancelled!"
+else
+  SCREEN_WRITE "$resp"
+fi

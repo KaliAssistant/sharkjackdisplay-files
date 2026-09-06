@@ -1,0 +1,24 @@
+#!/bin/bash
+
+source /usr/lib/shark_helpers
+
+title="${1:-"Press UP to continue"}"
+
+render_title() {
+  local screen_output
+
+  screen_output="$(split_and_center_vertically "$title" 5 7)"
+
+  clear_screen
+  screen_write "$screen_output\n"
+}
+
+while true; do
+  echo "WAIT_FOR_BUTTON_UP/RIGHT" >> /tmp/suppress_screen_service_scroll
+  render_title
+  resp="$(WAIT_FOR_INPUT)"
+  if [ "$resp" = "switch-right" ]; then
+    rm /tmp/suppress_screen_service_scroll
+    exit 0
+  fi
+done

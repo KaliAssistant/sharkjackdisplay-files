@@ -1,0 +1,140 @@
+#!/bin/bash
+
+# This script is the "Setup Wizard" for the device
+# This script will be deleted once it has been completed
+
+# not inteded for use in payloads, you should never see this file
+
+source /usr/lib/shark_helpers
+source /usr/lib/card_list_tools
+source /usr/lib/spinner_tools
+
+sleep 5 # prolong first bootlogo since user will be waiting anyway.
+
+clear_screen
+
+DISABLE_BACKLIGHT
+
+screen_write "$(split_and_center_vertically "Setting Up Device" 8 8)"
+
+# set up oui info for arp-scan
+mkdir /usr/share/arp-scan
+ln -sf /usr/share/arp-scan/ieee-oui.txt /usr/share/nmap/nmap-mac-prefixes
+
+while [ ! -f "/tmp/first_boot_complete" ]; do
+  sleep 1
+done
+
+configure_dialog() {
+  response="$(OPTION_DIALOG "  Agree to\n hak5.org/terms" " Back " " I Agree ")"
+  if [ "$response" = " Back " ]; then
+    render_cardmenu
+    return
+  fi
+  response="$(OPTION_DIALOG "Read the manual docs.hak5.org before use" " Back " " I Agree ")"
+  if [ "$response" = " Back " ]; then
+    render_cardmenu
+    return
+  fi
+
+  ALERT "Let's set up!" 3 false
+
+  resp="$(OPTION_DIALOG "Autorun Payload on Boot?" " NO " " YES ")"
+  if [ "$resp" = " NO " ]; then
+    SET_CONFIG_OPTION AUTOEXEC FALSE
+  else
+    SET_CONFIG_OPTION AUTOEXEC TRUE
+    ALERT "\n$(center_text "Autorun")\n\n$(center_text "can be stopped")\n\n$(center_text "within")\n$(center_text "time window")" 3 false true
+    resp="$(LIST_PICKER "Cancel Window" "2s 3s 4s [5s] 10s 15s 30s 60s" "[5s]")"
+    SET_CONFIG_OPTION AUTOEXEC_TIMEOUT "${1%s}"
+  fi
+  ALERT "\n$(center_text "All Settings")\n\n$(center_text "can be changed")\n\n$(center_text "in ARMING MODE")" 3 false true
+  ALERT "\n$(center_text "Update Firmware")\n\n$(center_text "from within")\n\n$(center_text "Settings>System")" 3 false true
+  BLOCKING_ALERT "Setup Complete!" 2 false
+  clear_screen
+  /etc/init.d/first_boot disable
+  rm /etc/init.d/first_boot
+  /etc/init.d/first_boot_complete disable
+  rm /etc/init.d/first_boot_complete
+  CREATE_SPINNER "Starting DHCP Server"
+  NETMODE DHCP_SERVER
+  STOP_SPINNER
+  SHARK_ANIMATION
+  play_shark_animation
+  clear_screen
+  touch /tmp/autoexec_prompted # skip payload auto deployment
+  /etc/init.d/sshd disable # we will leave sshd started since first_boot goes straight into arming mode anyway
+  /etc/init.d/shark enable
+  /etc/init.d/shark start &
+  sleep 0.5
+  DISOWN
+  rm /usr/bin/FIRST_BOOT
+  exit 0
+}
+
+count=0
+cool() {
+  case "$count" in
+    0)
+      ALERT "Great!" 1 false
+      ;;
+    1)
+      ALERT "Awesome, you got it!" 1 false
+      ;;
+    2)
+      ALERT "Yep, still works" 1 false
+      ;;
+    3)
+      ALERT "You can stop now." 1 false
+      ;;
+    4)
+      ALERT "Okay..." 1 false
+      ;;
+    5)
+      ALERT "Let's move on!" 2 false
+      ;;
+    6)
+      ALERT "There will be cake!" 3 false
+      ;;
+    7)
+      ALERT "This isn't a game" 3 false
+      ;;
+    8)
+      ALERT "NEW High Score!" 2 true
+      ;;
+    9)
+      ALERT "Just kidding" 1 false
+      ;;
+    10)
+      ALERT "You're going to love the next screen" 3 false
+      ;;
+    11)
+      ALERT "If we ever get there" 2 false
+      ;;
+    12)
+      ALERT "Now, try pressing down please" 3 false
+      ;;
+    13)
+      ALERT "This poor button." 2 false
+      ;;
+    14)
+      ALERT "I give up" 2 false
+      ;;
+    15)
+      ALERT "The cake was a lie" -1 false
+      ;;
+  esac
+  (( count++ ))
+  render_cardmenu
+}
+
+noop() {
+ echo "" >/dev/null
+}
+
+ADD_CARDMENU_ITEM "Welcome!" "noop"
+ADD_CARDMENU_ITEM "     ↓ to go     down/left" "noop"
+ADD_CARDMENU_ITEM "    ↑ to go     up/right" "noop"
+ADD_CARDMENU_ITEM "← to select" "cool"
+ADD_CARDMENU_ITEM "   Press ← to    continue" "configure_dialog"
+START_CARDMENU

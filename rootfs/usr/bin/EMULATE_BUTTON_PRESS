@@ -1,0 +1,70 @@
+#!/bin/sh
+
+# IMPORTANT NOTE: For use only as an internal DuckyScript tool, testing utility
+# Should not be used in payloads.
+
+# Emulate openwrt rc.button input
+
+# Usage
+# script <button> <action>
+# EMULATE_BUTTON_PRESS switch-middle
+# EMULATE_BUTTON_PRESS switch-right pressed
+# EMULATE_BUTTON_PRESS switch-left pressed
+
+BUTTON=$1
+ACTION=${2:-"released"}
+DIALOG="/tmp/dialog_button_listener"
+PAYLOAD="/tmp/payload_button_listener"
+SCREEN="/tmp/screen_service_button_listener"
+FRAMEWORK="/tmp/framework_button_listener"
+
+case "$ACTION" in
+  pressed)
+    if [ -p "$DIALOG" ]; then
+      logger -t SharkEmulateButton "$BUTTON $ACTION -> $DIALOG"
+      echo "$BUTTON" > "$DIALOG"
+      exit 0
+    fi
+    if [ -p "$PAYLOAD" ]; then
+      logger -t SharkEmulateButton "$BUTTON $ACTION -> $PAYLOAD"
+      echo "$BUTTON" > "$PAYLOAD"
+      exit 0
+    fi
+    if [ -p "$SCREEN" ]; then
+      logger -t SharkEmulateButton "$BUTTON $ACTION -> $SCREEN"
+      echo "$BUTTON" > "$SCREEN"
+      exit 0
+    fi
+    if [ -p "$FRAMEWORK" ]; then
+      logger -t SharkEmulateButton "$BUTTON $ACTION -> $FRAMEWORK"
+      echo "$BUTTON" > "$FRAMEWORK"
+      exit 0
+    fi
+    ;;
+  timeout)
+      ;;
+  released)
+    if [ -p "$DIALOG" ]; then
+      logger -t SharkEmulateButton "$BUTTON $ACTION -> $DIALOG"
+      echo "$BUTTON" > "$DIALOG"
+      exit 0
+    fi
+    if [ -p "$PAYLOAD" ]; then
+      logger -t SharkEmulateButton "$BUTTON $ACTION -> $PAYLOAD"
+      echo "$BUTTON" > "$PAYLOAD"
+      exit 0
+    fi
+    if [ -p "$SCREEN" ]; then
+      logger -t SharkEmulateButton "$BUTTON $ACTION -> $SCREEN"
+      echo "$BUTTON" > "$SCREEN"
+      exit 0
+    fi
+    if [ -p "$FRAMEWORK" ]; then
+      logger -t SharkEmulateButton "$BUTTON $ACTION -> $FRAMEWORK"
+      echo "$BUTTON" > "$FRAMEWORK"
+      exit 0
+    fi
+    ;;
+esac
+exit 0
+

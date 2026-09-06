@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Ported from Shark Jack Battery & Shark Jack Cable
+# Removes ~/.ssh and /root/loot
+
+for d in "${HOME}/.ssh" "/root/loot"; do
+    [ -d "${d}" ] && rm -rf "${d}"
+done

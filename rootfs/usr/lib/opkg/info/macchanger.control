@@ -1,0 +1,14 @@
+Package: macchanger
+Version: 1.7.0-3
+Depends: libc
+Source: feeds/packages/utils/macchanger
+SourceName: macchanger
+License: GPL-2.0-or-later
+LicenseFiles: COPYING
+Section: utils
+SourceDateEpoch: 1613865735
+Maintainer: Nicolas Thill <nico@openwrt.org>
+Architecture: mipsel_24kc
+Installed-Size: 214527
+Description:  This is a GNU/Linux utility for viewing/manipulating the MAC address
+ of network interfaces.

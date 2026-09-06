@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# This will permanently remove the device from the registered C2 server
+# and disable the C2 client
+
+C2DISCONNECT
+DISABLE_C2
+rm -f /etc/device.config

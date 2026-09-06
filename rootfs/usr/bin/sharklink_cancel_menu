@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# This script is used by SharkLink to allow the user to cancel mid execution
+# not intended for use in payloads
+
+source /usr/lib/shark_helpers
+source /usr/lib/list_tools
+
+back_to_wait() {
+  echo "Back"
+  exit 0
+}
+abort() {
+ echo "Cancel"
+ exit 0
+}
+
+ADD_MENU_ITEM "Back" "back_to_wait"
+ADD_MENU_ITEM "Quit" "abort"
+START_MENU

@@ -1,0 +1,3 @@
+/usr/libexec/ssh-openssh
+/etc/ssh/ssh_config
+/usr/libexec/scp-openssh

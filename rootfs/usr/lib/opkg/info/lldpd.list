@@ -1,0 +1,8 @@
+/etc/config/lldpd
+/usr/sbin/lldpd
+/usr/sbin/lldpcli
+/usr/lib/liblldpctl.so.4.9.1
+/usr/lib/liblldpctl.so
+/etc/init.d/lldpd
+/usr/lib/liblldpctl.so.4
+/usr/sbin/lldpctl

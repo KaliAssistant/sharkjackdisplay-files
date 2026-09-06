@@ -1,0 +1,139 @@
+#!/bin/bash
+
+# This script is used to download, validate and upgrade the firmware of the device
+
+source /usr/lib/spinner_tools
+
+export LOG="logger -t Shark [*]"
+export LOG_ERR="logger -t Shark -p 3 [!]"
+
+URL="https://downloads.hak5.org/api/devices/sharkjack-display/firmwares"
+
+upgrade_leds() {
+  LED OFF
+  while true
+  do
+    LED RED
+    sleep 0.2
+    LED BLUE
+    sleep 0.2
+  done
+}
+
+execute_upgrade() {
+  # Check for upgrade file in default location
+  upgrade_file=$(find /tmp/upgrade-* -type f 2>/dev/null | tail -n1)
+
+  if [ -f "${upgrade_file}" ]; then
+    CREATE_SPINNER "Validating Upgrade"
+    $LOG "Firmware upgrade found"
+    $LOG "Verifying firmware upgrade"
+    /usr/sbin/prepare_upgrade "$upgrade_file"
+    resp=$?
+    if [ "$resp" -ne 0 ]; then
+      $LOG "Firmware verification failed"
+      STOP_SPINNER
+      ALERT "Firmware Verification Failed" -1 false
+      rm "$upgrade_file"
+      rm "$upgrade_file.sig"
+      exit 1
+    fi
+    $LOG "Firmware upgrade verified"
+    STOP_SPINNER
+    $LOG "Executing UPGRADE"
+    resp="$(COUNTDOWN "Starting Upgrade" 10)"
+    if [ "$resp" = "Cancelled" ]; then
+      ALERT "Cancelled" 2 false
+      rm "$upgrade_file"
+      rm "$upgrade_file.sig"
+      exit 0
+    fi
+    upgrade_leds &
+    BLOCKING_ALERT "\n     UPGRADE\n   IN PROGRESS\n\n  DO NOT UNPLUG\n\nDO NOT POWER OFF\n" -1 false true &
+    sleep 2
+    echo "sysupgrade -n $upgrade_file" | at now
+    echo "UPDATING"
+    sleep 120
+    exit 2
+  fi
+}
+
+check_for_internet() {
+  resp="$(CONNECTION_CHECK)"
+  case $resp in
+    "No Internet")
+      STOP_SPINNER
+      ALERT "No Internet" 3 false
+      echo "You must have an internet connection to check for updates."
+      exit 1
+      ;;
+    "No DNS")
+      STOP_SPINNER
+      ALERT "No DNS" 3 false
+      echo "You must have an internet connection with working DNS to check for updates."
+      exit 1
+      ;;
+  esac
+  sleep 0.5
+}
+
+check_for_upgrade() {
+  CREATE_SPINNER "Checking for Updates..."
+  wget $URL -qO /tmp/firmware_check
+  remote_version=$(cat /tmp/firmware_check | jq -c '.[] | select( .latest_version == true ) | .version' | sed 's/-stable//' | sed 's/"//g')
+  local_version=$(cat /root/VERSION)
+  STOP_SPINNER
+  if [[ $remote_version != $local_version ]]; then
+    resp="$(OPTION_DIALOG "New Firmware Available" "Cancel" "Update")"
+    if [ "$resp" = "Cancel" ]; then
+      exit 0
+    fi
+
+    if [ "$(BATTERY)" != "Charging" ]; then
+      ALERT "Power Source Required" 1 false
+      exit 1
+    fi
+    CREATE_SPINNER "Downloading..."
+    curl -sL https://downloads.hak5.org/api/devices/sharkjack-display/firmwares/$remote_version-stable -o "/tmp/upgrade-$remote_version.bin"
+    status=$?
+    STOP_SPINNER
+    if [ $status -eq 0 ]; then
+      execute_upgrade
+    else
+      ALERT "Update Download Failed" -1 false
+      rm "$upgrade_file"
+      exit 1
+    fi
+  else
+    ALERT "Device is up-to-date." -1 false
+    exit 0
+  fi
+}
+
+update_time() {
+  CREATE_SPINNER "Syncing time..."
+  SYNC_TIME
+  STOP_SPINNER
+}
+
+main() {
+  resp="$(WAIT_FOR_LINK true)"
+  if [ "$resp" = "Cancelled" ]; then
+    exit 0
+  fi
+  resp="$(WAIT_FOR_IP true)"
+  if [ "$resp" = "Cancelled" ]; then
+    exit 0
+  fi
+
+  CREATE_SPINNER "Checking connection..."
+  check_for_internet
+  STOP_SPINNER
+
+  update_time
+
+  check_for_upgrade
+}
+
+main
+

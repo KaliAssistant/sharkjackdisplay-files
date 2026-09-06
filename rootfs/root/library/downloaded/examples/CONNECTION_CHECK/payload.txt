@@ -1,0 +1,14 @@
+#!/bin/bash
+
+resp="$(CONNECTION_CHECK)"
+case $resp in
+  "No Internet")
+     ALERT "No Internet Connection" 3
+     SCREEN_WRITE "No Connection"
+   ;;
+  "No DNS")
+     ALERT "DNS Error" 3
+     SCREEN_WRITE "No DNS"
+   ;;
+esac
+sleep 1

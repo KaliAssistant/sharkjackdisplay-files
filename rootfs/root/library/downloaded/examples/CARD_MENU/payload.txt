@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# Below is an example of a list menu and how one might use it in a payload
+
+# Available list_tools functions:
+# ADD_CARDMENU_ITEM <item/title> <function name OR submenu name> (optional)<data>
+# ADD_SUBCARDMENU_ITEM <submenu name> <item/title> <function name OR submenu name> (optional)<data>
+# START_MENU
+# CLEAR_MENU <name>
+# CLEAR_MENUS
+# SELECT_MENU <name>
+
+# Functions that are called from menu items should be blocking, the list menu will re-render
+# once the function called by a menu item returns
+
+# Example function using selected item data
+example_function_selected_data() {
+  ALERT "$SELECTED_ITEM_DATA" 2 false
+}
+
+# Example function using selected item (title)
+example_function_selected_item() {
+  ALERT "$SELECTED_ITEM" 2 false
+}
+
+# Initialize the menu system
+initialize_cardmenu_system() {
+
+  # Top level menu
+  ########################################
+
+  # on select the example_function_selected_data will alert "Data 1"
+  ADD_CARDMENU_ITEM "Data" "example_function_selected_data" "Data 1"
+
+  # on select the example_function_selected_item will alert "Item"
+  ADD_CARDMENU_ITEM "Item" "example_function_selected_item" "Data 2"
+
+  # on select the menu system will enter submenu named "submenu1" (generated below using ADD_SUBMENU_ITEM calls)
+  ADD_CARDMENU_ITEM "Submenu" "submenu1" ""
+
+  # on select the exit menu system using the function exit_menu() provided by list_tools
+  ADD_CARDMENU_ITEM "Quit" "EXIT_CARDMENU" ""
+
+
+
+  # Below are the definitions for submenu1
+  ########################################
+  # on select this will do nothing (calls noop() which is provided by list_tools)
+  ADD_SUBCARDMENU_ITEM "submenu1" "Example" "noop" ""
+
+  # on select this will alert "Submenu Data"
+  ADD_SUBCARDMENU_ITEM "submenu1" "Example 2" "example_function_selected_data" "Submenu Data"
+
+  # on select the example_function_selected_data will alert "longtext"
+  ADD_SUBCARDMENU_ITEM "submenu1" "Really Long Text Line Break Needed" "example_function_selected_data" "longtext"
+
+  # Back or ← Back are functions that are provided by list_tools that will return to the previous menu within the menu system
+  ADD_SUBCARDMENU_ITEM "submenu1" "← Back" "" ""
+}
+
+# Start the menu
+initialize_cardmenu_system
+START_CARDMENU

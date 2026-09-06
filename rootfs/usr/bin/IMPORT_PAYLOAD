@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# This script is used to move selected payload into my_payload library
+# Helpful for saving a downloaded payload as your own to modify it
+# and prevent it from being overwritten by subsequent updates to the downloaded payloads directory
+
+mv "$1" /root/library/my_payloads/

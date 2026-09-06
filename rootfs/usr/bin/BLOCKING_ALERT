@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# This script displays a full screen flashing alert on the screen that CANNOT be
+# dismissed by user input and will only dismiss after defined timeout
+
+# This script will (attempt to) auto split and center text
+# for advanced formatting/manual control, pass true as the last argument
+# usage of an optional arugment requires passing previous optional arguments
+
+# Usage
+# BLOCKING_ALERT "Title" (optional timeout)
+
+# Default values
+title="${1:-"Alert"}"
+timeout=${2:-3}
+flash=${3:-"true"}
+raw=${4:-"false"}
+
+source /usr/lib/shark_helpers
+disable_cursor_blink
+
+button_listener_pid=0
+
+render_title() {
+  local screen_output
+
+  if [ "$raw" != "true" ]; then
+    screen_output="$(split_and_center_vertically "$title" 7 7)"
+    clear_screen
+    screen_write "$screen_output\n"
+  else
+    clear_screen
+    screen_write "$title"
+  fi
+}
+
+
+run_interval() {
+  render_title
+  if [ $flash = true ];then
+    if [[ $timeout -lt 3 ]]; then
+      full_screen_invert
+      sleep 0.2
+      full_screen_invert_reset
+      sleep 0.1
+      full_screen_invert
+      sleep 0.2
+      full_screen_invert_reset
+    else
+      full_screen_invert
+      sleep 0.5
+      full_screen_invert_reset
+    fi
+  else
+    sleep 0.5
+  fi
+  sleep 0.5
+}
+
+show_alert() {
+  if (( timeout < 0 )); then
+    while true; do
+      run_interval
+    done
+  else
+    while (( timeout > 0 )); do
+      run_interval
+      ((timeout--))
+    done
+  fi
+  render_title
+  use_configured_theme
+  clear_screen
+}
+
+logger -t SharkAlert "Create Blocking Alert: $1"
+echo "BLOCKING_ALERT" >> /tmp/suppress_screen_service_scroll
+show_alert
+rm /tmp/suppress_screen_service_scroll
+

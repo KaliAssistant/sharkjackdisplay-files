@@ -1,0 +1,158 @@
+#!/bin/bash
+
+# This is a collection of helpers for shark framework and
+# accompanying scripts
+
+# typically automatically included via shark_helpers
+
+pad_ip() {
+    local ip="$1"
+    local IFS=.
+    local -a octets=($ip)
+
+    if [[ ${#octets[@]} -ne 4 ]]; then
+        echo "Invalid IP address $1"
+        return 1
+    fi
+
+    printf "%03d.%03d.%03d.%03d\n" "${octets[0]}" "${octets[1]}" "${octets[2]}" "${octets[3]}"
+}
+
+validate_and_strip_ip() {
+    local ip="$1"
+    if [[ $ip =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]]; then
+        local octet1="${BASH_REMATCH[1]}"
+        local octet2="${BASH_REMATCH[2]}"
+        local octet3="${BASH_REMATCH[3]}"
+        local octet4="${BASH_REMATCH[4]}"
+
+        if ((10#$octet1 <= 255 && 10#$octet2 <= 255 && 10#$octet3 <= 255 && 10#$octet4 <= 255)); then
+            # Strip leading zeros by reinterpreting each octet as a decimal number
+            local stripped_ip="$((10#$octet1)).$((10#$octet2)).$((10#$octet3)).$((10#$octet4))"
+            echo "$stripped_ip"
+            return 0
+        fi
+    fi
+    echo ""
+    return 1
+}
+
+# Function to trim spaces and validate domain name
+validate_domain() {
+    local domain
+    domain=$(echo "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')  # Trim spaces
+
+    # Regex for a valid domain (simplified)
+    if [[ $domain =~ ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$ ]]; then
+        echo "$domain"
+        return 0
+    else
+        echo "invalid"
+        return 1
+    fi
+}
+
+calculate_leases() {
+    local mask="$1"
+    local cidr
+
+    # If input is in CIDR format (e.g., /24), extract just the number
+    if [[ "$mask" =~ ^/[0-9]+$ ]]; then
+        cidr="${mask#/}"
+    else
+        # Convert subnet mask to CIDR
+        IFS=. read -r o1 o2 o3 o4 <<< "$mask"
+        cidr=$(( (o1 * 16777216 + o2 * 65536 + o3 * 256 + o4) * 8 / 4294967295 ))
+    fi
+
+    # Calculate the total IPs in the subnet
+    local total_ips=$(( 2 ** (32 - cidr) ))
+
+    # Exclude network and broadcast addresses (unless it's /31 or /32)
+    if (( cidr == 31 )); then
+        echo 2
+    elif (( cidr == 32 )); then
+        echo 1
+    else
+        echo $(( total_ips - 2 ))
+    fi
+}
+
+cidr_to_mask() {
+  if [[ -z "$1" ]]; then
+      echo "Missing argument"
+      logger -t SharkIPHelpers "CIDR to Mask Missing argument"
+      return 1
+  fi
+
+  # Remove the slash if provided
+  local cidr="${1/#\//}"
+
+  # Validate
+  if ! [[ "$cidr" =~ ^[0-9]+$ ]] || (( cidr < 0 || cidr > 32 )); then
+    echo "Error: CIDR must be a number between 0 and 32"
+      logger -t SharkIPHelpers "CIDR must be a number between 0 and 32"
+    return 1
+  fi
+
+  local mask=()
+  local full_octets=$(( cidr / 8 ))
+  local remainder=$(( cidr % 8 ))
+
+  # Generate full 255 octets
+  for (( i = 0; i < full_octets; i++ )); do
+    mask+=(255)
+  done
+
+  # Generate the partial octet if there is a remainder
+  if (( remainder > 0 )); then
+    mask+=($(( 256 - (1 << (8 - remainder)) )))
+  fi
+
+  # Fill remaining octets with 0
+  while (( ${#mask[@]} < 4 )); do
+    mask+=(0)
+  done
+
+  echo "${mask[*]}" | tr ' ' '.'
+}
+
+mask_to_cidr() {
+  # Check if an argument is given
+  if [[ -z "$1" ]]; then
+    echo "Missing argument"
+    logger -t SharkIPHelpers "Mask to CIDR Missing argument"
+    return 1
+  fi
+
+  # Validate
+  if ! [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    echo "Error: Invalid subnet mask format"
+    logger -t SharkIPHelpers "Mask to CIDR invalid subnet mask format"
+    return 1
+  fi
+
+  local mask=$1
+  local -a octets
+  IFS='.' read -r -a octets <<< "$mask"
+
+  local cidr=0
+
+  for octet in "${octets[@]}"; do
+    case "$octet" in
+      255) cidr=$((cidr + 8)) ;;
+      254) cidr=$((cidr + 7)) ;;
+      252) cidr=$((cidr + 6)) ;;
+      248) cidr=$((cidr + 5)) ;;
+      240) cidr=$((cidr + 4)) ;;
+      224) cidr=$((cidr + 3)) ;;
+      192) cidr=$((cidr + 2)) ;;
+      128) cidr=$((cidr + 1)) ;;
+      0) ;;
+      *) echo "Invalid subnet mask";logger -t SharkIPHelpers "Mask to CIDR invalid subnet mask"; return 1 ;;
+    esac
+  done
+
+  echo "/$cidr"
+}
+

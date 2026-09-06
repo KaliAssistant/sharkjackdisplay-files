@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Enables OpenSSH Server as a service on boot
+
+/etc/init.d/sshd enable
+/etc/init.d/sshd start

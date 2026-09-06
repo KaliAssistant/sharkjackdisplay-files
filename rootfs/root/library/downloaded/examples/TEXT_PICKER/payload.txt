@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# TEXT_PICKER can be used to prompt for a fixed width string with a max of 16 characters
+# you can define a custom alphabet to restrict the user's options
+# you can also provide a space padded string to allow for a "dynamic width" string
+# provided your code handles trimming the string afterwards
+
+SCREEN_WRITE "default"
+
+sleep 1
+
+# text picker with default (full) alphabet
+resp="$(TEXT_PICKER "Name" "dade")"
+if [ "$resp" = "← Back" ]; then
+  SCREEN_WRITE "Cancelled"
+else
+  SCREEN_WRITE "Hello, $resp"
+fi
+
+sleep 1
+
+
+SCREEN_WRITE "custom alphabet"
+
+sleep 1
+
+# text picker with custom alphabet
+resp="$(TEXT_PICKER "Fav MAC" "deadbeefcafe" "0123456789abcdef")"
+if [ "$resp" = "← Back" ]; then
+  SCREEN_WRITE "Cancelled"
+else
+  SCREEN_WRITE "$resp"
+  SCREEN_WRITE "Nice!"
+fi
+
+sleep 1
+
+SCREEN_WRITE "Done"

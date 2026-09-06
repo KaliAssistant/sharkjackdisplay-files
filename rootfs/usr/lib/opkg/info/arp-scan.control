@@ -1,0 +1,12 @@
+Package: arp-scan
+Version: 1.10.0-2
+Depends: libc, libpcap1
+Source: feeds/packages/net/arp-scan
+SourceName: arp-scan
+License: GPL-3.0-or-later
+Section: net
+SourceDateEpoch: 1684403175
+Maintainer: Sergey Urushkin <urusha.v1.0@gmail.com>
+Architecture: mipsel_24kc
+Installed-Size: 21456
+Description:  ARP scanner

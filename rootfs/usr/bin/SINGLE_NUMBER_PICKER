@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# This Scipr creates a single number picker prompt that auto increments/decrements (width)
+# Ignores non numberic leading or trailing characters
+
+# Usage
+# SINGLE_NUMBER_PICKER "CIDR" "/24" 
+
+# Supports a interval param
+# SINGLE_NUMBER_PICKER "Seconds" "60" "30"
+# +/- 30s
+
+source /usr/lib/shark_helpers
+disable_cursor_blink
+
+title="${1:-Number Picker}"
+input="${2:-0}"
+interval="${3:-1}"
+selected_option=0
+in_edit_mode=false
+
+# Split the input into prefix, number, and suffix
+prefix=$(echo "$input" | sed -E 's/^([^0-9]*).*/\1/')
+number=$(echo "$input" | sed -E 's/^[^0-9]*([0-9]+)[^0-9]*$/\1/')
+suffix=$(echo "$input" | sed -E 's/.*([^\d]*)$/\1/')
+
+render_single_number_picker() {
+  local screen_output
+
+  screen_output+="$(center_text "$title")\n\n"
+  if [[ $selected_option -gt 0 ]]; then
+    screen_output+="$(center_text "               ")\n"
+  else 
+    screen_output+="$(center_text "       ▲       ")\n"
+  fi
+
+  local middle_line="${prefix}${number}${suffix}"
+  if [[ $in_edit_mode == true ]]; then
+    middle_line="\033[7m$(center_text "${middle_line}")\033[0m"
+    screen_output+="$middle_line\n"
+  else
+    screen_output+="$(center_text "$middle_line")\n"
+  fi
+
+  if [[ $selected_option -gt 0 ]]; then
+    screen_output+="$(center_text "               ")\n\n"
+  else 
+    screen_output+="$(center_text "       ▼       ")\n\n"
+  fi
+
+  local save_option="Save"
+  local back_option="← Back"
+  if [[ $selected_option -eq 2 ]]; then
+    save_option="\033[7mSave\033[0m"
+  elif [[ $selected_option -eq 1 ]]; then
+    back_option="\033[7m← Back\033[0m"
+  fi
+  screen_output+="$(center_special_text "$back_option $save_option")"
+
+  clear_screen
+  screen_write "$screen_output\n"
+}
+
+btn_single_number_picker_input() {
+  local button_input=$1
+
+  case "$button_input" in
+    "switch-middle")
+      if [[ $selected_option -eq 0 ]]; then
+        in_edit_mode=$([[ $in_edit_mode == false ]] && echo true || echo false)
+      elif [[ $selected_option -eq 1 ]]; then
+        handle_single_number_picker_back
+      elif [[ $selected_option -eq 2 ]]; then
+        save_single_number
+      fi
+      ;;
+    "switch-left")
+      if [[ $in_edit_mode == true ]]; then
+        number=$((number - $interval))
+        [[ $number -lt 0 ]] && number=0
+      else
+        selected_option=$((selected_option + 1))
+        [[ $selected_option -gt 2 ]] && selected_option=0
+      fi
+      ;;
+    "switch-right")
+      if [[ $in_edit_mode == true ]]; then
+        number=$((number + $interval))
+      else
+        selected_option=$((selected_option - 1))
+        [[ $selected_option -lt 0 ]] && selected_option=2
+      fi
+      ;;
+  esac
+}
+
+save_single_number() {
+  exit_single_number_picker=true
+  echo "${prefix}${number}${suffix}"
+}
+
+handle_single_number_picker_back() {
+  exit_single_number_picker=true
+  echo "← Back"
+}
+
+single_number_picker() {
+  exit_single_number_picker=false
+  while [[ $exit_single_number_picker == false ]]; do
+    render_single_number_picker
+    button_input=$(/usr/sbin/dialog_button_listener)
+    btn_single_number_picker_input "$button_input"
+  done
+}
+
+echo "SINGLE_NUMBER_PICKER" > /tmp/suppress_screen_service_scroll
+single_number_picker
+rm /tmp/suppress_screen_service_scroll

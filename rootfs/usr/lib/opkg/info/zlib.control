@@ -1,0 +1,14 @@
+Package: zlib
+Version: 1.2.13-1
+Depends: libc
+Source: feeds/base/libs/zlib
+SourceName: zlib
+License: Zlib
+LicenseFiles: README
+Section: libs
+SourceDateEpoch: 1684402529
+CPE-ID: cpe:/a:gnu:zlib
+Architecture: mipsel_24kc
+Installed-Size: 34637
+Description:  zlib is a lossless data-compression library.
+ This package includes the shared library.

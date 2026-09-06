@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Disable the C2 Client service, the device will stay registered and service restartable
+
+/etc/init.d/cc-client disable
+/etc/init.d/cc-client stop

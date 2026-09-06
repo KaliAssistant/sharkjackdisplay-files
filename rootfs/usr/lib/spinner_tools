@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# This is a collection of functions intended to be sourced and called
+# to generate a spinner to be used within a payload
+
+# DuckyScript functions intended for use are in ALL CAPS
+
+# Find more compelte example code within the examples directory of the payload repo
+
+# Example Usage:
+# CREATE_SPINNER "Shark Loading..."
+# sleep 5
+# STOP_SPINNER
+
+source /usr/lib/shark_helpers
+
+
+_spinner_chars=('|' '/' '-' '\\')
+_spinner_position=0
+_spinner_pid=0
+_spinner_width=16
+_spinner_height=1
+_spinner_title=""
+trap 'STOP_SPINNER' EXIT
+
+render_spinner_frame() {
+  if [ ! -f "/tmp/pause_rendering" ]; then
+    local frame=""
+    local spinner_char=${_spinner_chars[_spinner_position]}
+
+    if [[ -n "$_spinner_title" ]]; then
+     frame+="$_spinner_title\n\n"
+    else
+      frame+="\n"
+    fi
+
+    for ((i = 0; i < _spinner_height; i++)); do
+      if (( i == (_spinner_height / 2) )); then
+        local padding=$(( (_spinner_width - 1) / 2 ))
+        frame+="$(printf '%*s%s%*s' "$padding" "" "$spinner_char" "$padding" "")"
+      else
+        frame+="$(printf '%*s' "$_spinner_width" "")"
+      fi
+    done
+
+    clear_screen
+    screen_write "$frame"
+  fi
+}
+
+spin_spinner() {
+  while true; do
+    render_spinner_frame
+    _spinner_position=$(( (_spinner_position + 1) % ${#_spinner_chars[@]} ))
+    sleep 0.1
+  done
+}
+
+start_spinner() {
+  if (( _spinner_pid > 0 )); then
+    echo "Spinner is already running."
+    return
+  fi
+
+  logger -t SharkSpinner "Create Spinner: $_spinner_title"
+  spin_spinner &
+  _spinner_pid=$!
+}
+
+STOP_SPINNER() {
+  rm /tmp/suppress_screen_service_scroll
+  logger -t SharkSpinner "Stop Spinner: $_spinner_title"
+  if (( _spinner_pid > 0 )); then
+    kill $_spinner_pid 2>/dev/null
+    wait $_spinner_pid 2>/dev/null
+    _spinner_pid=0
+    clear_screen
+  fi
+}
+
+CREATE_SPINNER() {
+  echo "spinner_tools" >> /tmp/suppress_screen_service_scroll
+  _spinner_title="$@"
+  _spinner_title="$(split_and_center_vertically "$_spinner_title" 4 5)"
+  start_spinner
+}
+

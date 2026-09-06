@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Tool to recursively collect and kill a parent and all its children
+# and children's children, and childrens childrens children...
+# ...
+# ....
+# .....
+
+# use with caution.
+
+kill_tree() {
+  local _pid="$1"
+
+  for _child in $(pgrep -P "$_pid"); do
+    kill_tree "$_child"
+  done
+
+  logger -t SharkKILLTREE "Killing PID $_pid"
+  kill -9 "$_pid" 2>/dev/null
+}
+
+logger -t SharkKILLTREE "Killing PID and Children $1"
+kill_tree $1
+logger -t SharkKILLTREE "Done"

@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# Hak5 firmware validation wrapper
+# 
+# Prepares a downloaded firmware from Hak5 for flashing
+#
+
+# prepare-upgrade [--ignore-signature] upgrade-file
+
+VALIDATE_SIG=1
+
+if test "$1"x = "--ignore-signature"; then
+	VALIDATE_SIG=0
+	shift
+fi
+
+if test ! -e "$1"; then
+	echo "Missing upgrade file"
+	exit 1
+fi
+
+SZ_UPGRADE=$(wc -c < "$1")
+
+if test "$SZ_UPGRADE" -lt 1024; then
+	echo "Upgrade file too small"
+	exit 1
+fi
+
+# Split the signature off the end
+/bin/dd ibs=1 obs=1024 skip=$((SZ_UPGRADE-1024)) if="$1" of="$1.sig" >/dev/null 2>&1
+if test $? -ne 0; then
+	echo "Error extracting signature"
+	exit 1
+fi
+
+# See if it looks like a signed upgrade
+/bin/grep "BEGIN SSH SIGNATURE" "$1.sig" >/dev/null 2>&1
+if test $? -ne 0; then
+	# Reject invalid signatures
+	if test "$VALIDATE_SIG" -ne 0; then
+		echo "Invalid signature suffix"
+		exit 1
+	fi
+
+	# If there is no valid signature but we also don't care, just finish
+	rm "$1.sig"
+	exit 0
+fi
+
+# Truncate the firmware file in-place now that we have the signature
+/usr/bin/truncate -c -s $((SZ_UPGRADE-1024)) "$1"
+
+# Validate
+/usr/bin/ssh-keygen -Y verify -f /etc/firmware-key -I hak5 -n file -s "$1.sig" < "$1" >/dev/null 2>&1
+
+if test $? -ne 0; then
+	# Reject invalid signatures
+	if test "$VALIDATE_SIG" -ne 0; then
+		echo "Invalid firmware signature"
+		exit 1
+	fi
+
+	# If there is no valid signature but we also don't care, just finish
+	exit 0
+fi
+
+echo "Firmware preparation finished"
+

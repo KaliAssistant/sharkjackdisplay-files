@@ -1,0 +1,6 @@
+/usr/lib/sshd-session
+/usr/sbin/sshd
+/etc/init.d/sshd
+/etc/ssh/sshd_config
+/lib/upgrade/keep.d/openssh-server
+/lib/preinit/99_10_failsafe_sshd

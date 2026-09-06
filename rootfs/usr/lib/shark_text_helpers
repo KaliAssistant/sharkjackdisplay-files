@@ -1,0 +1,85 @@
+#!/bin/bash
+
+# This is a collection of helpers for shark framework and
+# accompanying scripts
+
+# can be used within payloads if doing raw text formatting
+
+# centers text horizontally, ignoring highlighted text
+center_special_text() {
+  local text="$1"
+  local visible_text_length=$(echo -ne "$text" | sed 's/\x1B\[[0-9;]*m//g' | wc -m)
+  local padding=$(( (16 - visible_text_length) / 2 ))
+  local extra_space=$(( (16 - visible_text_length) % 2 ))
+  printf "%*s%s%*s" $((padding + extra_space)) "" "$text" "$padding" ""
+}
+
+# Centers text horizontally
+center_text() {
+  local text="$1"
+  local text_length=${#text}
+  local padding=$(( (16 - text_length) / 2 ))
+  local extra_space=$(( (16 - text_length) % 2 ))
+  printf "%*s%s%*s" $((padding + extra_space)) "" "$text" "$padding" ""
+}
+
+center_vertically() {
+    local text="$1"
+    local total_height="${2:-7}"
+    local lines_in_text
+    lines_in_text=$(echo "$text" | wc -l)
+    local lines_above=$(( (total_height - lines_in_text) / 2 ))
+    local lines_below=$(( total_height - lines_in_text - lines_above ))
+
+    local centered_text=""
+    for ((i = 0; i < lines_above; i++)); do
+        centered_text+="\n"
+    done
+    centered_text+="$text"
+    for ((i = 0; i < lines_below; i++)); do
+        centered_text+="\n"
+    done
+
+    echo -e "$centered_text"
+}
+
+# Splits (& truncates horizontally and vertically) and centers text horizontally
+split_and_center_text() {
+  local text="$1"
+  local max_length=16
+  local max_lines="${2:-7}"
+  local lines=()
+  local line_count=0
+
+  while [[ ${#text} -gt $max_length && $line_count -lt $max_lines ]]; do
+    local break_point
+    break_point=$(echo "$text" | awk -v len=$max_length '{s=substr($0, 1, len); pos=match(s, / [^ ]*$/); if (pos) print pos; else print len}')
+    lines+=("$(center_text "${text:0:break_point}")")
+    text="${text:break_point}"
+    text="${text#"${text%%[![:space:]]*}"}" # Trim leading spaces
+    ((line_count++))
+  done
+
+  if [[ $line_count -lt $max_lines ]]; then
+    lines+=("$(center_text "$text")")
+  fi
+
+  for line in "${lines[@]}"; do
+    echo "$line"
+  done
+}
+
+split_and_center_vertically() {
+  local text="$1"
+  local max_lines="$2"      # Maximum number of lines after splitting
+  local total_height="$3"   # Height to center vertically within
+  local max_length=16       # Line length for horizontal centering
+
+  local split_text
+  split_text=$(split_and_center_text "$text" "$max_lines")
+
+  local vertically_centered_text
+  vertically_centered_text=$(center_vertically "$split_text" "$total_height")
+
+  echo "$vertically_centered_text"
+}

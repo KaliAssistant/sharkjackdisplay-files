@@ -1,0 +1,258 @@
+#!/bin/bash
+
+# This tool is used as a two stage approach to confirming two devices can communicate on a network
+# First check is via broadcast, confirmed via user defined PIN code
+# Second stage uses IP of the other device confirmed via PIN to attempt a direct communication (UDP) with the other device
+
+source /usr/lib/spinner_tools
+source /usr/lib/shark_helpers
+
+configure_only=${1:-"false"}
+BROADCAST_IP="255.255.255.255"
+CODE="$(GET_CONFIG_OPTION PAIRING_CODE)"
+PORT="$(GET_CONFIG_OPTION PAIRING_PORT)"
+BROADCAST_PID=""
+BTN_PID=""
+STATE_FILE="/tmp/direct_comm_in_progress"
+
+#######################################
+# Configuration wizard
+#######################################
+if [ "$configure_only" = "false" ]; then
+  resp="$(OPTION_DIALOG "Change Configuration?" " No " " Yes ")"
+else
+  resp=" Yes "
+fi
+
+if [ "$resp" = " Yes " ]; then
+  CODE="$(NUMBER_PICKER "Pairing Code" "$CODE")"
+  if [ "$CODE" = "← Back" ]; then
+    ALERT "Exiting..." 1 false
+    exit 0
+  fi
+
+  PORT="$(NUMBER_PICKER "Port" "$PORT")"
+  if [ "$PORT" = "← Back" ]; then
+    ALERT "Exiting..." 1 false
+    exit 0
+  fi
+
+  if [ "$configure_only" = "false" ]; then
+    save="$(OPTION_DIALOG "Save as default?" " No " " Yes ")"
+  else
+    save=" Yes "
+  fi
+  if [ "$save" = " Yes " ]; then
+    SET_CONFIG_OPTION PAIRING_CODE "$CODE"
+    SET_CONFIG_OPTION PAIRING_PORT "$PORT"
+    ALERT "Saved" 1 false
+  fi
+fi
+
+if [ "$configure_only" = "true" ]; then
+  exit 0
+fi
+
+#######################################
+# Cleanup function
+#######################################
+cleanup() {
+  STOP_SPINNER
+  killall ALERT 2>/dev/null
+  killall sharklink_cancel_menu 2>/dev/null
+  [[ -n "$BROADCAST_PID" ]] && kill "$BROADCAST_PID" 2>/dev/null
+  [[ -n "$BTN_PID" ]] && kill "$BTN_PID" 2>/dev/null
+  [[ -n "$UDP_LISTENER_PID" ]] && kill "$UDP_LISTENER_PID" 2>/dev/null
+  [[ -n "$(cat $STATE_FILE)" ]] && kill "$(cat $STATE_FILE)" 2>/dev/null
+  rm -r /tmp/pause_alerts
+  rm -f /tmp/ack_response
+  rm -f "$STATE_FILE"
+  rm -f /tmp/pause_rendering
+  # Overkill, ensure all subshells and their children get killed
+  /usr/sbin/kill_tree $$
+  exit 0
+}
+
+trap cleanup SIGINT SIGTERM
+
+#######################################
+# Broadcast pairing request
+#######################################
+broadcast_code() {
+  while true; do
+    logger -t SharkLink "Broadcasting pairing code: $CODE with IP: $OUR_IP"
+    echo "$CODE $OUR_IP" | socat -u STDIN UDP-DATAGRAM:$BROADCAST_IP:$PORT,broadcast
+    sleep 5
+  done &
+  BROADCAST_PID=$!
+}
+
+#######################################
+# Unified UDP listener
+#######################################
+listen_all_messages() {
+  CREATE_SPINNER "Searching..."
+  socat -u UDP-RECV:$PORT,reuseaddr STDOUT | while read -r received_msg; do
+    received_cmd=$(echo "$received_msg" | cut -d ' ' -f1)
+    sender_ip=$(echo "$received_msg" | cut -d ' ' -f2)
+
+    [[ "$sender_ip" == "$OUR_IP" ]] && continue
+
+    case "$received_cmd" in
+      PING)
+        logger -t SharkLink "Received PING from $sender_ip. Sending ACK..."
+        echo "ACK $OUR_IP" | socat -u STDIN UDP-DATAGRAM:$sender_ip:$PORT
+        ;;
+      ACK)
+        logger -t SharkLink "Received ACK from $sender_ip"
+        echo "$(date +%s) $received_cmd $sender_ip" > /tmp/ack_response
+        ;;
+      "$CODE")
+        logger -t SharkLink "Received matching code from $sender_ip"
+        if [ -f "$STATE_FILE" ]; then
+          logger -t SharkLink "Direct comm attempt already in progress"
+          continue
+        fi
+
+        STOP_SPINNER
+        # This must be backgrounded so that listen_all_messages can be free to receive pings
+        (
+          ALERT "\n\n$(center_text "DISCOVERED")\n\n$(center_text "$sender_ip")\n" -1 false true
+          resp="$(OPTION_DIALOG "Test Direct?" "Quit" "Test")"
+          if [ $resp = "Quit" ]; then
+            kill -TERM "$BTN_PID" # signal to parent to exit by killing a pid its waiting on
+            return
+          fi
+          if direct_communication "$sender_ip"; then
+            ALERT "\n\n$(center_text "Link Confirmed")\n\n$(center_text "$sender_ip")\n" -1 false true
+            ALERT "Devices can communicate directly" -1 false false
+            ALERT "Exiting..." 1 false
+            kill -TERM "$BTN_PID" # signal to parent to exit by killing a pid its waiting on
+          else
+            ALERT "\n\n$(center_text "Link FAILED")\n\n$(center_text "$sender_ip")\n" 3 false true
+            ALERT "Retrying" 1 false
+            rm -f "$STATE_FILE"
+          fi
+        ) &
+        echo $! > "$STATE_FILE"
+        ;;
+
+    esac
+  done &
+  UDP_LISTENER_PID=$!
+}
+
+#######################################
+# Direct communication attempt
+#######################################
+direct_communication() {
+  TARGET_IP="$1"
+  ACK_TIMEOUT=7
+  MAX_ATTEMPTS=5
+  attempt=1
+
+  while (( attempt <= MAX_ATTEMPTS )); do
+    CREATE_SPINNER "Testing... $attempt"
+    rm -f /tmp/ack_response
+    ping_time=$(date +%s)
+    logger -t SharkLink "Sending direct PING to $TARGET_IP (Attempt $((attempt)))"
+    echo "PING $OUR_IP" | socat -u STDIN UDP-DATAGRAM:$TARGET_IP:$PORT
+
+    for ((i=0; i<$ACK_TIMEOUT; i++)); do
+      if [[ -f /tmp/ack_response ]]; then
+        logger -t SharkLink "Checking response"
+        read ack_time ack_cmd ack_ip < /tmp/ack_response
+        if (( ack_time >= ping_time )) && [[ "$ack_cmd" == "ACK" && "$ack_ip" == "$TARGET_IP" ]]; then
+          logger -t SharkLink "ACK VALID"
+          STOP_SPINNER
+          rm /tmp/ack_response
+          # exit 0 # this is a subshell
+          return 0
+        else
+          logger -t SharkLink "ACK INVALID"
+        fi
+      else
+        logger -t SharkLink "NO RESPONSE"
+      fi
+      sleep 1
+    done
+
+    STOP_SPINNER
+    ((attempt++))
+  done
+  # exit 1 # this is a subshell
+  return 1
+}
+
+#######################################
+# Handle cancel button input
+#######################################
+handle_button() {
+  while true; do
+    button=$(/usr/sbin/payload_button_listener)
+    logger -t SharkLink "Recieved button input: $button"
+    if [ "$button" != "switch-middle" ]; then
+      logger -t SharkLink "skipping input"
+      sleep 0.5
+      continue
+    fi
+    echo "SHARK_LINK" >> /tmp/pause_rendering
+    echo "SHARK_LINK" >> /tmp/pause_alerts
+    resp="$(sharklink_cancel_menu)"
+    rm -f /tmp/pause_rendering
+    rm -f /tmp/pause_alerts
+    if [ "$resp" = "Cancel" ]; then
+      logger -t Shark "BUTTON PRESSED: Cancelling pairing process"
+      exit # exit this background function, wait -n will clean up for us
+    fi
+    sleep 0.5
+  done &
+  BTN_PID=$!
+}
+
+
+
+#######################################
+# Start pairing process
+#######################################
+ALERT "Starting..." 1 false
+
+logger -t SharkLink "Waiting for Link..."
+resp="$(WAIT_FOR_LINK true)"
+if [ "$resp" = "Cancelled" ]; then
+  logger -t SharkLink "Waiting for Link cancelled..."
+  ALERT "Quitting..." 1 false
+  exit 0
+fi
+
+sleep 0.5
+
+logger -t SharkLink "Waiting for IP..."
+resp="$(WAIT_FOR_IP true)"
+if [ "$resp" = "Cancelled" ]; then
+  logger -t SharkLink "Waiting for IP cancelled..."
+  ALERT "Quitting..." 1 false
+  exit 0
+fi
+
+# Locate and validate current device IP
+OUR_IP=$(ip -4 addr show scope global | awk '/inet / {print $2}' | cut -d/ -f1)
+logger -t SharkLink "Device IP: $OUR_IP"
+validating_ip="$(validate_and_strip_ip "$OUR_IP")"
+if [ -z "$validating_ip" ]; then
+  ALERT "Error getting IP" 3
+  ALERT "Quitting..." 1 false
+  exit 0
+fi
+
+# Start link process
+broadcast_code
+# Launch listener to allow user to exit early
+handle_button
+# Process incoming messages
+listen_all_messages
+
+# Wait for ANY of the 3 PIDs to exit, then cleanup
+wait -n "$BROADCAST_PID" "$BTN_PID" "$UDP_LISTENER_PID"
+cleanup
+

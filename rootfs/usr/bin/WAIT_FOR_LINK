@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# This script is used to detect when device has been plugged into ethernet
+
+source /usr/lib/spinner_tools
+
+trap 'cleanup_and_exit 0' SIGINT SIGTERM EXIT
+
+# skip check
+if [ -f "/tmp/skip_wait_for_link" ]; then
+  logger -t SharkWAITFORLINK "Skip waiting for link"
+  rm "/tmp/skip_wait_for_link"
+  exit 0
+fi
+# exit early before starting spinner if we are already up
+if swconfig dev switch0 port 0 get link | grep -q 'link:up'; then
+  logger -t SharkWAITFORLINK "Link Already Up"
+  exit 0
+fi
+
+cancellable="${1:-"false"}"
+INTERFACE="eth0"
+
+cleanup_and_exit() {
+  STOP_SPINNER
+  rm /tmp/pause_rendering
+  [[ -n "$WAIT_PID" ]] && kill "$WAIT_PID" 2>/dev/null
+  [[ -n "$BTN_PID" ]] && kill "$BTN_PID" 2>/dev/null
+  killall dialog_button_listener 2>/dev/null
+  killall wait_for_cancel_menu 2>/dev/null
+  exit $1
+}
+
+wait_for_link() {
+  logger -t SharkWaitForLink "Waiting for Ethernet link..."
+  until swconfig dev switch0 port 0 get link | grep -q 'link:up'; do
+    if [ -f "/tmp/skip_wait_for_link" ]; then
+      rm "/tmp/skip_wait_for_link"
+      STOP_SPINNER
+      cleanup_and_exit 0
+    fi
+    sleep 0.5
+  done
+}
+
+handle_button() {
+  while true; do
+    button=$(/usr/sbin/dialog_button_listener)
+    echo "WAIT_FOR_LINK" >> /tmp/pause_rendering
+    resp="$(wait_for_cancel_menu)"
+    if [ "$resp" = "Cancel" ]; then
+      logger -t Shark "BUTTON PRESSED: Cancelling wait for IP"
+      echo "Cancelled"
+      rm /tmp/pause_rendering
+      cleanup_and_exit 1
+    fi
+    rm /tmp/pause_rendering
+  done
+}
+
+if [[ "$cancellable" == "true" ]]; then
+  CREATE_SPINNER "Waiting for Ethernet Link"
+
+  wait_for_link &
+  WAIT_PID=$!
+
+  handle_button &
+  BTN_PID=$!
+
+  # Wait for either process to exit
+  wait -n "$WAIT_PID" "$BTN_PID"
+
+  cleanup_and_exit 0
+else
+  wait_for_link
+  cleanup_and_exit 0
+fi

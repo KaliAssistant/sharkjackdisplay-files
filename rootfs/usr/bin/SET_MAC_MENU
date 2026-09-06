@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# This script is used by the framework to prompt the user to change/set the current device MAC
+# Not intended for use within payloads
+
+source /usr/lib/spinner_tools
+
+apply="${1:-true}"
+mac="$(ip link show eth0 | awk '/ether/ {print $2}' | sed 's/://g')"
+resp="$(TEXT_PICKER "Set MAC:" "$mac" "0123456789abcdefX")"
+
+if [ "$resp" = "← Back" ]; then
+  echo "← Back"
+  exit 0
+fi
+formatted_mac="$(echo "$resp" | sed 's/\(..\)/\1:/g; s/:$//')"
+
+if [[ ! "$formatted_mac" =~ ^([a-fA-F0-9X]{2}:){5}[a-fA-F0-9X]{2}$ ]]; then
+  ALERT "Invalid MAC" -1 false
+  echo "← Back"
+  exit 1
+fi
+
+
+if [ "$apply" = "true" ]; then
+  CREATE_SPINNER "Applying..."
+  current_netmode="$(GET_NETMODE)"
+  ifconfig eth0 down
+  macchanger -m "$formatted_mac" eth0
+  ifconfig eth0 up
+  sleep 1
+  STOP_SPINNER
+  CREATE_SPINNER "Restarting NETMODE"
+  NETMODE $current_netmode
+  STOP_SPINNER
+  ALERT "Complete!" 1 false
+else
+  echo "$formatted_mac"
+  exit 0
+fi

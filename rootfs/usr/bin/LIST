@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# Command line helper to display payload library as a list
+
+LIBRARY_DIR="/root/library"
+DOWNLOADS_DIR="$LIBRARY_DIR/downloaded"
+MY_PAYLOADS_DIR="$LIBRARY_DIR/my_payloads"
+
+print_tree() {
+    local dir="$1"
+    local indent="$2"
+
+    if [[ ! -d "$dir" ]]; then
+        return
+    fi
+
+    local items=()
+    while IFS= read -r entry; do
+        items+=("$entry")
+    done < <(find "$dir" -mindepth 1 -maxdepth 1 2>/dev/null | sort)
+
+    for item in "${items[@]}"; do
+        local base_name=$(basename "$item")
+
+        if [[ -d "$item" ]]; then
+            echo "${indent} $base_name/"
+            print_tree "$item" "$indent    "
+        else
+            echo "${indent} $base_name"
+        fi
+    done
+}
+
+list_payloads() {
+    if [[ ! -d $LIBRARY_DIR ]]; then
+        echo "Payload library is missing. Run UPDATE_PAYLOADS to sync the payload library."
+        exit 1
+    fi
+
+    echo "Payloads"
+    echo "========"
+    echo " "
+
+    # List downloaded payloads
+    if [[ -d $DOWNLOADS_DIR ]]; then
+        echo "Downloaded Payloads"
+        echo "-------------------"
+        print_tree "$DOWNLOADS_DIR" "    "
+        echo " "
+    else
+        echo "No downloaded payloads found."
+        echo " "
+    fi
+
+    # List my payloads
+    if [[ -d $MY_PAYLOADS_DIR ]]; then
+        echo "My Payloads"
+        echo "-----------"
+        print_tree "$MY_PAYLOADS_DIR" "    "
+        echo " "
+    else
+        echo "No personal payloads found."
+        echo " "
+    fi
+}
+
+main() {
+    list_payloads
+}
+
+main
+

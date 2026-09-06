@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# This script is used to fetch payload repo from Hak5 Github
+
+# Ported from Shark Jack Battery & Shark Jack Cable, updated and modified paths (/root/payload -> /root/library/downloaded/)
+
+source /usr/lib/shark_helpers
+source /usr/lib/spinner_tools
+
+MASTER_URL="https://github.com/hak5/sharkjackdisplay-payloads/archive/refs/heads/master.tar.gz"
+
+check_for_internet() {
+  resp="$(CONNECTION_CHECK)"
+  case $resp in
+    "No Internet")
+       if [ "$SSH_CONTEXT" = true ]; then
+         interactive_only_print "You must have an internet connection to sync the payload libraries."
+       else
+         ALERT "No Internet Connection" 3
+         exit 1
+       fi
+     ;;
+    "No DNS")
+       if [ "$SSH_CONTEXT" = true ]; then
+         interactive_only_print "You must have an internet connection with working DNS to check for updates."
+       else
+         ALERT "DNS Error" 3
+         exit 1
+       fi
+     ;;
+  esac
+  sleep 0.5
+}
+
+update_time() {
+    interactive_only_print "Ensuring system time is correct"
+    CREATE_SPINNER "Syncing time"
+    SYNC_TIME
+    STOP_SPINNER
+}
+
+cleanup_tmp() {
+    rm -rf /tmp/payloads-sync.tar.gz
+    rm -rf /tmp/payloads-sync
+}
+
+interactive_only_print() {
+  logger -t SharkGetPayloads "$@"
+  if [ "$SSH_CONTEXT" = true ]; then
+    echo "$@"
+  fi
+}
+
+update_payloads() {
+    CREATE_SPINNER "Downloading..."
+
+    cleanup_tmp
+
+    interactive_only_print "Downloading payloads repository..."
+
+    curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.5615.49 Safari/537.36" -sL $MASTER_URL -o /tmp/payloads-sync.tar.gz
+    status=$?
+    if [ $status != 0 ]; then
+      STOP_SPINNER
+      ALERT "Payload Sync Failed" 3
+      exit 1
+    fi
+    mkdir /tmp/payloads-sync
+    tar -xzf /tmp/payloads-sync.tar.gz -C /tmp/payloads-sync
+    status=$?
+    if [ $status != 0 ]; then
+      STOP_SPINNER
+      ALERT "Payload Sync Failed" 3
+      exit 1
+    fi
+    rm -rf /root/library/downloaded/*
+    cp -r /tmp/payloads-sync/sharkjackdisplay-payloads-master/payloads/library/* /root/library/downloaded/
+    status=$?
+    if [ $status != 0 ]; then
+      STOP_SPINNER
+      ALERT "Payload Sync Failed" 3
+      exit 1
+    fi
+    cleanup_tmp
+
+    STOP_SPINNER
+
+    interactive_only_print "Successfully synchronized payloads repository."
+    ALERT "Payloads Updated!" 3
+}
+
+main() {
+    check_for_internet
+    update_time
+    update_payloads
+}
+
+main

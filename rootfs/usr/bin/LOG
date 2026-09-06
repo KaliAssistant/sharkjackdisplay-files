@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# This script is similar to SCREEN_WRITE
+# it is used to add a message to the payload log, but unlike SCREEN_WRITE
+# this script will tell screen_service to NOT automaticall redraw the current
+# payload log viewing window
+
+line="$@"
+prefix=$'\x01'  # prefix to tell screen_service to log only, not render
+
+line="${prefix}${line}"
+
+while [[ ${#line} -gt 15 ]]; do
+    echo "${line:0:15}" > /tmp/screen
+    line="${line:15}"
+done
+echo "$line" > /tmp/screen
+

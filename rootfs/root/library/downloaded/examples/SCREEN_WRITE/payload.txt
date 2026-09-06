@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Write to the scrollable payload log
+# this tool is how you will write to the screen if not
+# explicitly using another utility like ALERT, etc
+
+SCREEN_WRITE "Test 1"
+sleep 0.25
+SCREEN_WRITE "Test 2"
+sleep 0.25
+SCREEN_WRITE "Test 3"
+sleep 0.25
+SCREEN_WRITE "Test 4"
+sleep 0.25
+SCREEN_WRITE "Test 5"
+sleep 0.25
+SCREEN_WRITE "Test 6"
+sleep 0.25
+SCREEN_WRITE "Test 7"
+sleep 0.25
+SCREEN_WRITE "Test 8"
+sleep 0.25
+SCREEN_WRITE "Test 9"
+sleep 0.25
+SCREEN_WRITE "Test 10"

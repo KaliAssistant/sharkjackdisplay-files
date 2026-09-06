@@ -1,0 +1,14 @@
+Package: nmap
+Version: 7.93-3
+Depends: libc, libpcap1, libstdcpp6, zlib, libpcre
+Source: feeds/packages/net/nmap
+SourceName: nmap
+License: NPSL-0.94-or-NPSL-0.95
+LicenseFiles: LICENSE
+Section: net
+SourceDateEpoch: 1699198845
+CPE-ID: cpe:/a:nmap:nmap
+Maintainer: Nuno Gonçalves <nunojpg@gmail.com>
+Architecture: mipsel_24kc
+Installed-Size: 2262170
+Description:  Utility for network exploration or security auditing

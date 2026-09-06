@@ -1,0 +1,100 @@
+#!/bin/bash
+
+# For use by shark_framework
+# This script generates a clients menu that allows the user to browse current
+# clients by IP, by HOSTNAME, or by MAC
+
+source /usr/lib/shark_helpers
+source /usr/lib/list_tools
+
+disable_text_wrap
+
+cleanup() {
+  enable_text_wrap
+}
+
+trap cleanup EXIT
+
+LEASE_FILE="/var/dhcp.leases"
+
+initialize_main_menu() {
+  if [[ ! -f "$LEASE_FILE" ]]; then
+    ADD_MENU_ITEM "DHCP Lease File Not Found" "EXIT_MENU"
+    return
+  fi
+
+  local total_items=$(wc -l < "$LEASE_FILE")
+  if [ "$total_items" -eq 0 ]; then
+    ADD_MENU_ITEM "No active leases found" "EXIT_MENU"
+    return
+  fi
+
+  ADD_MENU_ITEM "Clients: $(cat /var/dhcp.leases | wc -l)" "noop"
+  ADD_MENU_ITEM "View by Hostname" "menu_by_hostname"
+  ADD_MENU_ITEM "View by IP" "menu_by_ip"
+  ADD_MENU_ITEM "View by MAC" "menu_by_mac"
+  ADD_MENU_ITEM "← Back"
+
+  initialize_all_submenus
+}
+
+initialize_all_submenus() {
+  declare -A leases_by_hostname leases_by_ip leases_by_mac
+
+  while read -r lease; do
+    local hostname=$(echo "$lease" | awk '{print $4}')
+    local mac_address=$(echo "$lease" | awk '{print $2}' | sed 's/://g')  # Remove colons from MAC
+    local ip_address=$(echo "$lease" | awk '{print $3}')
+
+    [[ -z "$hostname" ]] && hostname="(Unknown Host)"
+
+    leases_by_hostname["$hostname"]="$ip_address $mac_address"
+    leases_by_ip["$ip_address"]="$hostname $mac_address"
+    leases_by_mac["$mac_address"]="$hostname $ip_address"
+  done < "$LEASE_FILE"
+
+  populate_menu "menu_by_hostname" leases_by_hostname "Hostname" "IP Address" "MAC Address"
+  populate_menu "menu_by_ip" leases_by_ip "IP Address" "Hostname" "MAC Address"
+  populate_menu "menu_by_mac" leases_by_mac "MAC Address" "Hostname" "IP Address"
+}
+
+populate_menu() {
+  local menu_name="$1"
+  declare -n lease_data="$2"  # Use nameref to access the associative array
+  local label_primary="$3"
+  local label_secondary="$4"
+  local label_tertiary="$5"
+
+  for key in "${!lease_data[@]}"; do
+    local secondary_value=$(echo "${lease_data["$key"]}" | awk '{print $1}')
+    local tertiary_value=$(echo "${lease_data["$key"]}" | awk '{print $2}')
+
+    local submenu_name="lease_${menu_name}_${key}"
+    ADD_SUBMENU_ITEM "$menu_name" "$key" "$submenu_name"
+    initialize_lease_submenu "$submenu_name" "$label_secondary" "$secondary_value" "$label_tertiary" "$tertiary_value"
+  done
+
+  ADD_SUBMENU_ITEM "$menu_name" "← Back"
+}
+
+initialize_lease_submenu() {
+  local menu_name="$1"
+  local label_secondary="$2"
+  local secondary_value="$3"
+  local label_tertiary="$4"
+  local tertiary_value="$5"
+
+  # ADD_SUBMENU_ITEM "$menu_name" "$label_secondary:" "noop"
+  ADD_SUBMENU_ITEM "$menu_name" "  $secondary_value" "noop"
+  # ADD_SUBMENU_ITEM "$menu_name" "$label_tertiary:" "noop"
+  ADD_SUBMENU_ITEM "$menu_name" "  $tertiary_value" "noop"
+  ADD_SUBMENU_ITEM "$menu_name" "← Back"
+}
+
+noop() {
+  echo "" > /dev/null
+}
+
+initialize_main_menu
+START_MENU
+

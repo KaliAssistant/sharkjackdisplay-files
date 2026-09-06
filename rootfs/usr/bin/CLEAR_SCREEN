@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Script to turn screen blank
+
+source /usr/lib/shark_helpers
+clear_screen

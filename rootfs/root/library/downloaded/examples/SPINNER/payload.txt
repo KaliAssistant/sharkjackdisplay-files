@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Create an indeterminate spinner on screen
+# Spinner functions:
+# CREATE_SPINNER <title>
+# STOP_SPINNER
+
+SCREEN_WRITE "Creating spinner"
+
+sleep 1
+
+CREATE_SPINNER "Loading..."
+
+sleep 5
+
+STOP_SPINNER
+
+SCREEN_WRITE "Done"

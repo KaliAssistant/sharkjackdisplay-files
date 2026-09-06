@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Disables the OpenSSH Server
+
+/etc/init.d/sshd disable
+/etc/init.d/sshd stop

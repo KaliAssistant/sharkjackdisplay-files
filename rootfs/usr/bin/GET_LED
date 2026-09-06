@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# This script will return the CURRENT LED
+
+# NOTE: if the LED mode is set to a pattern, this will not accurately reflect
+# that (constantly changing) state
+
+RED_LED="/sys/class/leds/led_red/brightness"
+GREEN_LED="/sys/class/leds/led_green/brightness"
+BLUE_LED="/sys/class/leds/led_blue/brightness"
+
+red=$(cat "$RED_LED" 2>/dev/null)
+green=$(cat "$GREEN_LED" 2>/dev/null)
+blue=$(cat "$BLUE_LED" 2>/dev/null)
+
+if [ -z "$red" ] || [ -z "$green" ] || [ -z "$blue" ]; then
+    echo "Error"
+    exit 1
+fi
+
+if [ "$red" -eq 1 ] && [ "$green" -eq 0 ] && [ "$blue" -eq 0 ]; then
+    echo "Red"
+elif [ "$red" -eq 0 ] && [ "$green" -eq 1 ] && [ "$blue" -eq 0 ]; then
+    echo "Green"
+elif [ "$red" -eq 0 ] && [ "$green" -eq 0 ] && [ "$blue" -eq 1 ]; then
+    echo "Blue"
+elif [ "$red" -eq 1 ] && [ "$green" -eq 1 ] && [ "$blue" -eq 0 ]; then
+    echo "Yellow"
+elif [ "$red" -eq 0 ] && [ "$green" -eq 1 ] && [ "$blue" -eq 1 ]; then
+    echo "Cyan"
+elif [ "$red" -eq 1 ] && [ "$green" -eq 0 ] && [ "$blue" -eq 1 ]; then
+    echo "Magenta"
+elif [ "$red" -eq 1 ] && [ "$green" -eq 1 ] && [ "$blue" -eq 1 ]; then
+    echo "White"
+else
+    echo "Off"
+fi
+

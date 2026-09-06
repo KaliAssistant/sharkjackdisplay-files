@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# This script will display a flashing countdown waiting for user input
+# if the user presses the button before the timeout is up, the script will echo "Cancelled"
+# otherwise the script will echo "Timeout"
+
+# Usage
+# COUNTDOWN "Countdown Title" 10
+
+# Default values
+title="${1:-"Countdown"}"
+timeout=${2:-10}
+subtitle="${3:-""}"
+flash=${4:-"true"}
+
+source /usr/lib/shark_helpers
+disable_cursor_blink
+
+button_listener_pid=0
+
+render_countdown() {
+  local remaining_time=$1
+  local screen_output
+
+  screen_output="\n$(center_text "$title")\n\n"
+  screen_output+="$(center_text "$remaining_time"s)\n\n"
+  if [ "$subtitle" = "" ]; then
+    screen_output+="$(center_text "Press button")\n"
+    screen_output+="$(center_text "to cancel")"
+  else
+    screen_output+="$(split_and_center_text "$subtitle")\n"
+  fi
+
+  clear_screen
+  screen_write "$screen_output\n"
+}
+
+btn_countdown_input() {
+  local button_input=$1
+  case "$button_input" in
+    "switch-middle")
+      echo "Cancelled"
+      cleanup
+      exit 0
+      ;;
+  esac
+}
+
+cleanup() {
+  rm /tmp/button_input
+  if [[ $button_listener_pid -ne 0 ]]; then
+    kill $button_listener_pid 2>/dev/null
+    wait $button_listener_pid 2>/dev/null
+  fi
+}
+
+trap "full_screen_invert; cleanup; exit 0" SIGINT
+
+check_input() {
+  if [[ -s /tmp/button_input ]]; then
+    button_input=$(< /tmp/button_input)
+    : > /tmp/button_input
+    btn_countdown_input "$button_input"
+  fi
+}
+
+countdown() {
+  /usr/sbin/dialog_button_listener > /tmp/button_input&
+  button_listener_pid=$!
+
+  while (( timeout > 0 )); do
+    check_input
+    render_countdown $timeout
+    if [ $flash = true ];then
+      if [[ $timeout -lt 3 ]]; then
+        full_screen_invert
+        sleep 0.2
+        full_screen_invert_reset
+        check_input
+        # sleep 0.1
+        full_screen_invert
+        sleep 0.2
+        full_screen_invert_reset
+      else 
+        full_screen_invert
+        sleep 0.5
+        full_screen_invert_reset
+      fi
+    else
+      sleep 0.2
+      check_input
+      sleep 0.2
+    fi
+
+    sleep 0.2
+    check_input
+    sleep 0.2
+    ((timeout--))
+  done
+
+  render_countdown 0
+  clear_screen
+  echo "Timeout"
+  use_configured_theme
+  cleanup
+  exit 0
+}
+
+countdown
+

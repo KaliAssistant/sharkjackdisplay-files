@@ -1,0 +1,5 @@
+#!/bin/bash
+
+SCREEN_WRITE "Default Payload"
+sleep 1
+ALERT "Hello, World!" 3

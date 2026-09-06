@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# This script is used to play the bitmap shark animation
+
+# Play forward
+for i in {1..23}; do
+  cat "/usr/lib/animation/a${i}.bmp" > /dev/fb0
+done
+
+# Pause after forward animation
+sleep 0.5
+
+# Play backward
+for i in {22..1}; do
+  cat "/usr/lib/animation/a${i}.bmp" > /dev/fb0
+done
+
+# Pause after backward animation
+sleep 2

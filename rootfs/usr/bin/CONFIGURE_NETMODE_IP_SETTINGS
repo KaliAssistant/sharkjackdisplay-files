@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# This script will prompt and then set the values within config.txt used by NETMODE by default
+
+source /usr/lib/shark_helpers
+
+config_netmode_ip="$(GET_CONFIG_OPTION NETMODE_IP)"
+config_netmode_netmask="$(GET_CONFIG_OPTION NETMODE_NETMASK)"
+config_netmode_gateway="$(GET_CONFIG_OPTION NETMODE_GATEWAY)"
+
+# converted for picker dialogs
+config_netmode_ip="$(pad_ip "$config_netmode_ip")"
+config_netmode_netmask="$(mask_to_cidr "$config_netmode_netmask")"
+config_netmode_gateway="$(pad_ip "$config_netmode_gateway")"
+
+while true; do
+    ip="$(/usr/bin/NUMBER_PICKER "NETMODE IP" "$config_netmode_ip")"
+    if [ "$ip" = "← Back" ]; then
+        exit 1
+    fi
+    ip="$(validate_and_strip_ip "$ip")"
+    if [ -z "$ip" ]; then
+        ALERT "Invalid IP" 3
+        # Retry IP
+        continue
+    fi
+    conf="$(CONFIRMATION_DIALOG "$ip")"
+    if [ "$conf" != "Confirm" ]; then
+        # Retry IP
+        continue
+    fi
+    break
+done
+
+subnet="$(LIST_PICKER "Subnet Mask CIDR" "/0 /1 /2 /3 /4 /5 /6 /7 /8 /9 /10 /11 /12 /13 /14 /15 /16 /17 /18 /19 /20 /21 /22 /23 /24 /25 /26 /27 /28 /29 /30 /31 /32" "$config_netmode_netmask")"
+if [ "$subnet" = "← Back" ]; then
+    ALERT "Exiting..." 2
+    exit 1
+fi
+subnet="$(cidr_to_mask "$subnet")"
+subnet="$(validate_and_strip_ip "$subnet")"
+
+while true; do
+    gateway="$(/usr/bin/NUMBER_PICKER "GATEWAY" "$config_netmode_gateway")"
+    if [ "$gateway" = "← Back" ]; then
+        ALERT "Exiting..." 2
+        exit 1
+    fi
+    gateway="$(validate_and_strip_ip "$gateway")"
+    if [ -z "$gateway" ]; then
+        ALERT "Invalid GATEWAY" 3
+        # Retry gateway
+        continue
+    fi
+    conf="$(CONFIRMATION_DIALOG "$gateway")"
+    if [ "$conf" != "Confirm" ]; then
+        # Retry gateway
+        continue
+    fi
+
+    break
+done
+
+ALERT "Settings Saved!" 2 false
+
+SET_CONFIG_OPTION NETMODE_IP "$ip"
+SET_CONFIG_OPTION NETMODE_NETMASK "$subnet"
+SET_CONFIG_OPTION NETMODE_GATEWAY "$gateway"

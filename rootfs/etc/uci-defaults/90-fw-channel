@@ -1,0 +1,8 @@
+#!/bin/sh
+
+uci set system.updates=updates
+uci set system.updates.channel='stable'
+
+uci commit system
+
+exit 0

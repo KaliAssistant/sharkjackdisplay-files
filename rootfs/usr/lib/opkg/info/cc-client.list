@@ -1,0 +1,5 @@
+/usr/sbin/C2EXFIL
+/etc/init.d/cc-client
+/usr/sbin/C2GETCONFIG
+/usr/sbin/cc-client
+/usr/sbin/C2NOTIFY

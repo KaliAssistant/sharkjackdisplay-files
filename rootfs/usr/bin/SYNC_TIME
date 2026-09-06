@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# This script is used to update the time on the device via NTP
+# this script blocks until the operation is complete
+
+# -g allow time sync even if difference is large
+# -q quit after setting time
+# -N run at high priority
+# -n run in foreground
+# -d enable verbose debug output
+# -p set pool
+ntpd -gqNnd -p 0.openwrt.pool.ntp.org

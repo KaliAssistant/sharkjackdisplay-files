@@ -1,0 +1,124 @@
+#!/bin/bash
+
+# This script displays a full screen flashing alert on the screen that can be
+# dismissed by user input or will auto dismiss after defined timeout
+
+# This script will (attempt to) auto split and center text
+# for advanced formatting/manual control, pass true as the last argument
+# usage of an optional arugment requires passing previous optional arguments
+
+# Usage
+# Alert "Title" (optional timeout) (optional flash flag) (optional raw input flag)
+
+# a timeout of 0s will mean alert will persist on screen until drawn over, and will not consume button input
+
+# Default values
+title="${1:-"Alert"}"
+timeout=${2:--1}
+flash=${3:-"true"}
+raw=${4:-"false"}
+
+source /usr/lib/shark_helpers
+disable_cursor_blink
+
+button_listener_pid=0
+
+render_title() {
+  local screen_output
+
+  if [ "$raw" != "true" ]; then
+    screen_output="$(split_and_center_vertically "$title" 5 7)"
+    clear_screen
+    screen_write "$screen_output\n"
+  else
+    clear_screen
+    screen_write "$title"
+  fi
+}
+
+btn_alert_input() {
+  local button_input=$1
+  case "$button_input" in
+    "switch-left"|"switch-right"|"switch-middle")
+      cleanup
+      exit 0
+      ;;
+  esac
+}
+
+cleanup() {
+  rm /tmp/button_input
+  if [[ $button_listener_pid -ne 0 ]]; then
+    kill $button_listener_pid 2>/dev/null
+    wait $button_listener_pid 2>/dev/null
+  fi
+  use_configured_theme
+}
+
+trap "cleanup; exit 0" SIGINT
+
+check_input() {
+  if [[ -s /tmp/button_input ]]; then
+    button_input=$(< /tmp/button_input)
+    : > /tmp/button_input
+    btn_alert_input "$button_input"
+    logger -t SharkALERT "Received button input $button_input"
+  fi
+}
+
+run_interval() {
+  if [ -f '/tmp/pause_alerts' ]; then
+    logger -t SharkALERT "Alerts paused"
+    sleep 1
+    return
+  fi
+  check_input
+  render_title
+  if [ $flash = true ];then
+    if [[ $timeout -lt 3 ]]; then
+      full_screen_invert
+      sleep 0.2
+      full_screen_invert_reset
+      check_input
+      full_screen_invert
+      sleep 0.2
+      full_screen_invert_reset
+    else
+      full_screen_invert
+      sleep 0.5
+      full_screen_invert_reset
+    fi
+  else
+    sleep 0.2
+    check_input
+    sleep 0.2
+  fi
+
+  sleep 0.2
+  check_input
+  sleep 0.2
+}
+
+show_alert() {
+  /usr/sbin/dialog_button_listener > /tmp/button_input &
+  button_listener_pid=$!
+
+  if (( timeout < 0 )); then
+    while true; do
+      run_interval
+    done
+  else
+    while (( timeout > 0 )); do
+      run_interval
+      ((timeout--))
+    done
+  fi
+
+  render_title
+  cleanup
+}
+
+logger -t SharkAlert "Create Alert: $1"
+echo "ALERT" >> /tmp/suppress_screen_service_scroll
+show_alert
+rm /tmp/suppress_screen_service_scroll

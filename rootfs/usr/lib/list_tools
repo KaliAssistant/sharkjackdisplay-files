@@ -1,0 +1,304 @@
+#!/bin/bash
+
+# This is a collection of functions intended to be sourced and called
+# to generate a card menu system to be used within a payload
+
+# DuckyScript functions intended for use are in ALL CAPS
+
+# Find more compelte example code within the examples directory of the payload repo
+
+# Simple usage example
+# # Example function
+# example_function() {
+#   echo "Selected item data: $SELECTED_ITEM_DATA"
+# }
+
+# # Initialize the menu system
+# initialize_menu_system() {
+#   ADD_MENU_ITEM "Option 1" "example_function" "Data 1"
+#   ADD_MENU_ITEM "Option 2" "example_function" "Data 2"
+#   ADD_MENU_ITEM "Submenu" "submenu1" ""
+#   ADD_MENU_ITEM "Quit" "exit_menu" ""
+#
+#   ADD_SUBMENU_ITEM "submenu1" "Long Text Line Break Needed" "example_function" ""
+#   ADD_SUBMENU_ITEM "submenu1" "Extra Really Really Long Text Line Break Needed" "example_function" ""
+#   ADD_SUBMENU_ITEM "submenu1" "cloudc2 multi file exfiltration" "example_function" "Submenu Data"
+#   ADD_SUBMENU_ITEM "submenu1" "Example Action" "example_function" "Submenu Data"
+#   ADD_SUBMENU_ITEM "submenu1" "← Back" "" ""
+# }
+
+# Start the menu
+# initialize_menu_system
+# START_MENU
+
+source /usr/lib/shark_helpers
+
+declare -A menus
+_list_menu_running=true
+_list_menu_stack=()
+_list_current_menu="main_menu"
+_list_selected_index=0
+_list_card_menus=()
+
+# Add a menu item to the main menu
+ADD_MENU_ITEM() {
+  local label="$1"
+  local action="$2"
+  local data="$3"
+  local menu_name="main_menu"
+
+  if [[ ${#label} -gt 16 || $label == *$'\n'* ]]; then
+      _list_card_menus+=("$menu_name")
+  fi
+
+  if [[ -z "${menus[$menu_name]}" ]]; then
+    menus["$menu_name"]=""
+  fi
+  menus["$menu_name"]+="$label|$action|$data;"
+}
+
+# Add a menu item to a specific submenu
+ADD_SUBMENU_ITEM() {
+  local menu_name="$1"
+  local label="$2"
+  local action="$3"
+  local data="$4"
+
+  if [[ ${#label} -gt 16 || $label == *$'\n'* ]]; then
+      _list_card_menus+=("$menu_name")
+  fi
+
+  if [[ -z "${menus[$menu_name]}" ]]; then
+    menus["$menu_name"]=""
+  fi
+  menus["$menu_name"]+="$label|$action|$data;"
+}
+
+render_menu() {
+  # NOTE: future TODO,  in a perfect world, this is adjusted to be fixed 8 rows tall
+  local out=""
+  local up_indicator="."
+  local down_indicator="."
+
+  IFS=';' read -r -a menu_items <<< "${menus[$_list_current_menu]}"
+  local total_items=${#menu_items[@]}
+  if [ $total_items -lt 4 ]; then
+    up_indicator=" "
+    down_indicator=" "
+  fi
+
+  local visible_start=$((_list_selected_index - 1))
+  local visible_end=$((_list_selected_index + 1))
+
+  if [[ $visible_start -lt 0 ]]; then
+    visible_end=$((visible_end - visible_start))
+    visible_start=0
+  fi
+  if [[ $visible_end -ge $total_items ]]; then
+    visible_start=$((visible_start - (visible_end - total_items + 1)))
+    visible_end=$((total_items - 1))
+  fi
+  if [[ $visible_start -lt 0 ]]; then
+    visible_start=0
+  fi
+
+  if [[ $visible_start -gt 0 ]]; then
+    up_indicator="↑"
+  fi
+  if [[ $visible_end -lt $((total_items - 1)) ]]; then
+    down_indicator="↓"
+  fi
+
+  if [[ -n $up_indicator ]]; then
+    out="$up_indicator"
+  fi
+
+  for ((i = visible_start; i <= visible_end; i++)); do
+    local item="${menu_items[$i]}"
+    local label="${item%%|*}"
+    local centered_label
+
+    local item_length=${#label}
+    if ((item_length > 16)); then
+      centered_label="$label"
+    else
+      local padding=$((16 - item_length))
+      local left_padding=$((padding / 2))
+      local right_padding=$((padding - left_padding))
+      centered_label="$(printf '%*s%s%*s' "$left_padding" '' "$label" "$right_padding" '')"
+    fi
+
+    if [[ $i -eq $_list_selected_index ]]; then
+      out="$out\n\033[7m$centered_label\033[0m\n"
+    else
+      out="$out\n$centered_label\n"
+    fi
+  done
+
+  if [[ -n $down_indicator ]]; then
+    out="$out$down_indicator"
+  fi
+
+  clear_screen
+  screen_write "$out\n"
+}
+
+render_card_menu() {
+  local up_indicator="┌──────────────┐\n"
+  local down_indicator="└──────────────┘\n"
+
+  IFS=';' read -r -a menu_items <<< "${menus[$_list_current_menu]}"
+  local total_items=${#menu_items[@]}
+
+  if [[ $_list_selected_index -gt 0 ]]; then
+    up_indicator="┌──────↑───────┐\n"
+  fi
+  if [[ $_list_selected_index -lt $((total_items - 1)) ]]; then
+    down_indicator="└──────↓───────┘\n"
+  fi
+
+  local item="${menu_items[$_list_selected_index]}"
+  local label="${item%%|*}"
+
+  local centered_label="$(split_and_center_text "$label")"
+  local screen_width=16
+  local screen_height=6
+  local content_height=$(echo "$centered_label" | wc -l)
+  local vertical_padding=$(( (screen_height - content_height) / 2 ))
+  local extra_padding=$(( (screen_height - content_height) % 2 ))
+  local top_padding=$(( vertical_padding + extra_padding - 1 ))
+  local bottom_padding=$(( vertical_padding ))
+
+  out=""
+  for ((i = 0; i < top_padding; i++)); do
+    out+="\n"
+  done
+  out+="$centered_label\n"
+  for ((i = 0; i < bottom_padding; i++)); do
+    out+="\n"
+  done
+
+  clear_screen
+  screen_write "$up_indicator$out$down_indicator"
+}
+
+handle_selection() {
+  IFS=';' read -r -a menu_items <<< "${menus[$_list_current_menu]}"
+  local selected="${menu_items[$_list_selected_index]}"
+  SELECTED_ITEM="${selected%%|*}"
+  local action_data="${selected#*|}"
+  local action="${action_data%%|*}"
+  SELECTED_ITEM_DATA="${action_data#*|}"
+
+  if [[ "$SELECTED_ITEM" == "Back" ]] || [[ "$SELECTED_ITEM" == "← Back" ]]; then
+    # Navigate back to the previous menu
+    if [[ ${#_list_menu_stack[@]} -gt 0 ]]; then
+      _list_current_menu="${_list_menu_stack[-1]}"
+      unset _list_menu_stack[-1]
+      _list_selected_index=0
+    else
+      echo "← Back"
+      EXIT_MENU
+    fi
+  elif [[ "${menus[$action]+_}" ]]; then
+    # Navigate to submenu
+    _list_menu_stack+=("$_list_current_menu")
+    _list_current_menu="$action"
+    _list_selected_index=0
+  elif [[ "$(type -t "$action")" == "function" ]]; then
+    $action
+  fi
+}
+
+
+navigate_menu() {
+  local direction="$1"
+  IFS=';' read -r -a menu_items <<< "${menus[$_list_current_menu]}"
+  local menu_length=${#menu_items[@]}
+
+  case "$direction" in
+    up) ((_list_selected_index--)); [[ $_list_selected_index -lt 0 ]] && _list_selected_index=$((menu_length - 1)) ;;
+    down) ((_list_selected_index++)); [[ $_list_selected_index -ge $menu_length ]] && _list_selected_index=0 ;;
+  esac
+}
+
+EXIT_MENU() {
+  _list_menu_running=false
+}
+
+EXIT_SUBMENU() {
+  if [[ ${#_list_menu_stack[@]} -gt 0 ]]; then
+    _list_current_menu="${_list_menu_stack[-1]}"
+    unset _list_menu_stack[-1]
+    _list_selected_index=0
+  else
+    EXIT_MENU
+  fi
+}
+
+# Delete a menu item
+DELETE_MENU_ITEM() {
+  local menu_name="$1"
+  local label="$2"
+
+  if [[ -n "${menus[$menu_name]}" ]]; then
+    local updated_menu=""
+    IFS=';' read -r -a menu_items <<< "${menus[$menu_name]}"
+    for item in "${menu_items[@]}"; do
+      [[ "${item%%|*}" != "$label" ]] && updated_menu+="$item;"
+    done
+    menus["$menu_name"]="$updated_menu"
+  fi
+}
+
+# Clear a menu
+CLEAR_MENU() {
+  local menu_name="$1"
+  menus["$menu_name"]=""
+}
+
+# Clear all menus
+CLEAR_MENUS() {
+  declare -A menus
+  _list_menu_running=true
+  _list_menu_stack=()
+  _list_current_menu="main_menu"
+  _list_selected_index=0
+  _list_card_menus=()
+}
+
+# Select a menu by name
+SELECT_MENU() {
+  local menu_name="$1"
+  if [[ -n "${menus[$menu_name]}" ]]; then
+    _list_menu_stack+=("$_list_current_menu")
+    _list_current_menu="$menu_name"
+    _list_selected_index=0
+  fi
+}
+
+START_MENU() {
+  echo "list_tools" >> /tmp/suppress_screen_service_scroll
+  while $_list_menu_running; do
+    if [[ " ${_list_card_menus[@]} " =~ " ${_list_current_menu} " ]]; then
+      render_card_menu
+    else
+      render_menu
+    fi
+    button_input=$(/usr/sbin/dialog_button_listener)
+    if [ "$_list_menu_running" = "true" ]; then # this allows the menu to be force quit by emulating button presses
+     case "$button_input" in
+       "switch-middle") rm /tmp/suppress_screen_service_scroll; handle_selection; echo "list_tools" >> /tmp/suppress_screen_service_scroll ;;
+       "switch-left") navigate_menu down ;;
+       "switch-right") navigate_menu up ;;
+       *) ;;
+     esac
+    fi
+  done
+  rm /tmp/suppress_screen_service_scroll
+}
+
+noop() {
+  return
+}
+

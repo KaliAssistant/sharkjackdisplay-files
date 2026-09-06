@@ -1,0 +1,50 @@
+#!/bin/sh
+
+. /lib/functions.sh
+
+SCREENSAVER="/tmp/screensaver_button_listener"
+DIALOG="/tmp/dialog_button_listener"
+PAYLOAD="/tmp/payload_button_listener"
+SCREEN="/tmp/screen_service_button_listener"
+FRAMEWORK="/tmp/framework_button_listener"
+
+case "$ACTION" in
+  pressed)
+    # Handle the "pressed" action if needed
+    exit 0
+    ;;
+  timeout)
+    # Handle the "timeout" action if needed
+    exit 0
+    ;;
+  released)
+    if [ -p "$SCREENSAVER" ]; then
+      echo "switch-middle" > "$SCREENSAVER"
+      touch /tmp/interaction
+      exit 0
+    fi
+    if [ -p "$DIALOG" ]; then
+      echo "switch-middle" > "$DIALOG"
+      touch /tmp/interaction
+      exit 0
+    fi
+    if [ -p "$PAYLOAD" ]; then
+      echo "switch-middle" > "$PAYLOAD"
+      touch /tmp/interaction
+      exit 0
+    fi
+    if [ -p "$SCREEN" ]; then
+      echo "switch-middle" > "$SCREEN"
+      touch /tmp/interaction
+      exit 0
+    fi
+    if [ -p "$FRAMEWORK" ]; then
+      echo "switch-middle" > "$FRAMEWORK"
+      touch /tmp/interaction
+      exit 0
+    fi
+    ;;
+esac
+
+exit 0
+

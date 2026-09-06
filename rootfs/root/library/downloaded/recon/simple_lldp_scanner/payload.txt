@@ -1,0 +1,32 @@
+#!/bin/bash
+# Title: Simple LLDP Scanner
+# Author: Hak5Darren
+# Props: Korben
+# Description: Listens for an LLDP Neighbor. If found, displays basic results
+LED SETUP
+TIMEOUT=60
+/etc/init.d/lldpd start
+CREATE_SPINNER "Starting DHCP"
+  NETMODE DHCP_CLIENT
+STOP_SPINNER
+WAIT_FOR_LINK
+WAIT_FOR_IP
+SCREEN_WRITE "${TIMEOUT}s LLDP Sniff"
+elapsed=1
+while [ "$elapsed" -lt "$TIMEOUT" ]; do
+  result="$(lldpctl -f keyvalue)"
+  if [ "${#result}" -gt 2 ]; then FOUND=1; break; fi
+  sleep 1 && elapsed=$((elapsed + 1))
+done
+if [ "$FOUND" = "1" ]; then
+  LED FINISH
+  lldpctl -f keyvalue | sed 's/lldp.eth0.//g' > /tmp/lldp
+  SCREEN_WRITE "$(cat /tmp/lldp | grep "via=" | sed 's/via=//g')"
+  SCREEN_WRITE "$(cat /tmp/lldp | grep "chassis.local=" | sed 's/chassis.local=//g')"
+  SCREEN_WRITE "$(cat /tmp/lldp | grep "port.ifname=" | sed 's/port.ifname=//g')"
+  SCREEN_WRITE "TTL: $(cat /tmp/lldp | grep "port.ttl=" | sed 's/port.ttl=//g')"
+else
+  LED FAIL
+  SCREEN_WRITE "LLDP Neighbor"
+  SCREEN_WRITE "Not Found"
+fi

@@ -1,0 +1,73 @@
+#!/bin/bash
+
+
+# This script is called by screensaver service to
+# prevent screen staying idle by making sure the screen never stays on
+# uninterrupted for longer than the configured time within config.txt.
+# User input will stop the animation.
+
+# not intended for use within payloads
+
+source /usr/lib/shark_helpers
+
+logger -t SharkScreenSaver "Screensaver Service Starting..."
+
+while true; do
+  screensavertimeout="$(GET_CONFIG_OPTION SCREENSAVER_TIMEOUT)"
+  if [[ -z "$screensavertimeout" || ! "$screensavertimeout" =~ ^[0-9]+$ ]]; then
+    logger -t SharkScreenSaver "Invalid SCREENSAVER_TIMEOUT, using default of 15 minutes"
+    screensavertimeout=15
+  fi
+
+  sleepcounter=$((screensavertimeout * 6))
+
+  logger -t SharkScreenSaver "Screensaver timeout: $screensavertimeout"
+  logger -t SharkScreenSaver "Screensaver configured: $screensaver"
+
+  currentcounter=$sleepcounter
+  logger -t SharkScreenSaver "Screensaver sleeping..."
+  logger -t SharkScreenSaver "Current sleep counter: $currentcounter"
+
+  rm /tmp/interaction
+
+  while (( currentcounter > 0 )); do
+    sleep 10
+    ((currentcounter--))
+  done
+
+  if [ -f "/tmp/interaction" ]; then
+    logger -t SharkScreenSaver "Screensaver Skipped, device has had interaction"
+    currentcounter=$sleepcounter
+    continue
+  fi
+
+  logger -t SharkScreenSaver "Launching Screensaver"
+  screensaver="$(GET_CONFIG_OPTION SCREENSAVER)"
+  if [[ -z "$screensaver" ]]; then
+    logger -t SharkScreenSaver "No screensaver configured, skipping."
+    currentcounter=$sleepcounter
+    continue
+  fi
+  screensaver_path="/usr/lib/screensavers/$screensaver/screensaver.sh"
+  if [[ ! -x "$screensaver_path" ]]; then
+    logger -t SharkScreenSaver "Screensaver script not found or not executable: $screensaver_path"
+    CLEAR_SCREEN
+    currentcounter=$sleepcounter
+    continue
+  fi
+  # Execute screensaver
+  resp="$("$screensaver_path")"
+
+  # Screensaver exited
+  use_configured_theme
+  logger -t SharkScreenSaver "Screensaver exited"
+  sleep 0.1
+  # emulate input to redraw
+  timeout 1 /bin/bash -c "EMULATE_BUTTON_PRESS "switch-left" "pressed""
+  timeout 1 /bin/bash -c "EMULATE_BUTTON_PRESS "switch-right" "pressed""
+
+  logger -t SharkScreenSaver "Scheduling interaction reset"
+  # this needs to happen after screen "wakes back up" whatever was in the background otherwise we will never see another screensaver
+  echo "sleep 15 && rm -f /tmp/interaction" | at now
+done
+

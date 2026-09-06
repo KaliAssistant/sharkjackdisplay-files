@@ -1,0 +1,7 @@
+#!/bin/bash
+line="$@"
+while [[ ${#line} -gt 15 ]]; do
+    echo "${line:0:15}" > /tmp/screen
+    line="${line:15}"
+done
+echo "$line" > /tmp/screen

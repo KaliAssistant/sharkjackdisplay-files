@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# This script is used to prompt the user to choose between two options
+
+# Usage
+# OPTION_DIALOG "Hack The Planet?" "False" "True"
+
+
+source /usr/lib/shark_helpers
+disable_cursor_blink
+
+title="${1:-"Hack The Planet?"}"
+save_label="${3:-"True"}"
+back_label="${2:-"False"}"
+selected_option=0
+
+render_confirmation_dialog() {
+  local screen_output
+
+  screen_output+="$(split_and_center_vertically "$title" 4 5)\n\n"
+
+  local save_option="$save_label"
+  local back_option="$back_label"
+
+  if [[ $selected_option -eq 0 ]]; then
+    back_option="\033[7m$back_label\033[0m"
+  elif [[ $selected_option -eq 1 ]]; then
+    save_option="\033[7m$save_label\033[0m"
+  fi
+
+  screen_output+="$(center_special_text "$back_option $save_option")"
+
+  clear_screen
+  screen_write "$screen_output\n\n"
+}
+
+btn_confirmation_dialog_input() {
+  local button_input=$1
+
+  case "$button_input" in
+    "switch-left")
+      selected_option=$((selected_option - 1))
+      [[ $selected_option -lt 0 ]] && selected_option=1
+      ;;
+    "switch-right")
+      selected_option=$((selected_option + 1))
+      [[ $selected_option -gt 1 ]] && selected_option=0
+      ;;
+    "switch-middle")
+      handle_selection
+      ;;
+  esac
+}
+
+handle_selection() {
+  if [[ $selected_option -eq 0 ]]; then
+    echo "$back_label"
+  elif [[ $selected_option -eq 1 ]]; then
+    echo "$save_label"
+  fi
+  rm /tmp/suppress_screen_service_scroll
+  exit 0
+}
+
+confirmation_dialog() {
+  while true; do
+    render_confirmation_dialog
+    button_input=$(/usr/sbin/dialog_button_listener)
+    btn_confirmation_dialog_input "$button_input"
+  done
+}
+
+echo "OPTION_DIALOG" >> /tmp/suppress_screen_service_scroll
+confirmation_dialog

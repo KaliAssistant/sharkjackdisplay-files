@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Similar to NUMBER_PICKER, SINGLE_NUMBER_PICKER will allow the user to
+# select a number, but this one will auto adjust the character width
+# allowing the user to go past 9 into double digits, etc
+# similar to NUMBER_PICKER it skips special characters
+
+
+SCREEN_WRITE "Prompting"
+
+sleep 1
+
+resp="$(SINGLE_NUMBER_PICKER "Subnet" "/9")"
+if [ "$resp" = "← Back" ]; then
+  SCREEN_WRITE "Cancelled"
+fi
+
+SCREEN_WRITE "Done $resp"
+

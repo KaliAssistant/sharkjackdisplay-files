@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# IMPORTANT: For use by screensaver service ONLY
+
+FIFO_PATH="/tmp/screensaver_button_listener"
+
+# Ensure the FIFO does not already exist
+if [ -e "$FIFO_PATH" ]; then
+    logger -t SharkSCREENSAVERButtonListener "Another process is already listening for payload button input."
+    sleep 1
+    exit 1
+fi
+
+# Create the FIFO pipe
+mkfifo "$FIFO_PATH"
+
+# Start listening on the FIFO and process input
+trap "rm -f $FIFO_PATH" EXIT # Ensure FIFO is cleaned up on exit
+
+while true; do
+  if IFS= read -r line < "$FIFO_PATH"; then
+    case "$line" in
+      switch-right)
+        echo "switch-right"
+        break
+        ;;
+      switch-left)
+        echo "switch-left"
+        break
+        ;;
+      switch-middle)
+        echo "switch-middle"
+        break
+        ;;
+      *)
+        ;;
+    esac
+  fi
+done
+

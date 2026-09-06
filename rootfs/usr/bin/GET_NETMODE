@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# This script will return the current NETMODE
+
+cat /tmp/NETMODE

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# This script is used to handle taking over the shark_framework via ssh
+# call SHARK from an SSH session to take over the shark service in favor of spawning an interactive shark_framework session
+
+
+# this script will avoid doing the initial arming mode/payload auto exec timeout because /tmp/autoexe_prompted will already exist
+
+shark_cleanup() {
+  CLEAR_SCREEN
+  echo "Closing interactive session. Shark Framework will now restart as a system service..."
+  sleep 2
+  echo "unset SSH_CONNECTION; /etc/init.d/shark start" | at now
+}
+
+echo "Running this will kill the shark service that is running in the background, and restart it interactively in this shell."
+echo "Press CTRL-C NOW to stop"
+read -p "Otherwise, press any key to continue..."
+
+trap shark_cleanup EXIT
+
+/etc/init.d/shark stop
+/usr/bin/shark_framework true

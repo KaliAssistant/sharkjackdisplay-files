@@ -1,0 +1,155 @@
+#!/bin/bash
+
+# This script is used by the framework to generate and run a menu system to view the loot on the device
+
+# not intended for use by payloads
+
+source /usr/lib/shark_helpers
+source /usr/lib/list_tools
+source /usr/lib/progress_bar_tools
+
+BASE_DIR="/root/loot"
+
+initialize_menu_system() {
+  CREATE_PROGRESS_BAR "Loading..."
+
+  local total_items=$(find "$BASE_DIR" -mindepth 1 -maxdepth 1 | wc -l)
+  local current_progress=0
+
+  if [ "$total_items" -eq 0 ]; then
+    ADD_MENU_ITEM "No items found" "EXIT_MENU"
+    SET_PROGRESS 100
+    return
+  fi
+
+  for item in "$BASE_DIR"/*; do
+    current_progress=$((current_progress + 1))
+    INCREMENT_PROGRESS $((100 * current_progress / total_items))
+
+    if [ -d "$item" ]; then
+      local item_name="$(basename "$item")"
+      local submenu_name="submenu_$item_name"
+      ADD_MENU_ITEM "$item_name/" "$submenu_name" "$item"
+      initialize_folder_menu "$submenu_name" "$item"
+    elif [ -f "$item" ]; then
+      local item_name="$(basename "$item")"
+      local filemenu_name="filemenu_$item_name"
+      ADD_MENU_ITEM "$item_name" "$filemenu_name" "$item"
+      initialize_file_menu "$filemenu_name" "$item"
+    fi
+  done
+  ADD_MENU_ITEM "← Back"
+  SET_PROGRESS 100
+}
+
+initialize_file_menu() {
+  local menu_name="$1"
+  local file_path="$2"
+
+  local size=$(wc -c < "$file_path")
+  local lines=$(wc -l < "$file_path")
+  local created_date=$(ls -l "$file_path" | awk '{print $6, $7, $8}')
+  local created_time=$(ls -l "$file_path" | awk '{print $8}')
+  local permissions=$(ls -l "$file_path" | awk '{print $1}')
+
+  local file_info_menu_name="fileinfo_${menu_name}"
+
+  ADD_SUBMENU_ITEM "$menu_name" "View File Info" "$file_info_menu_name" "$file_path"
+  ADD_SUBMENU_ITEM "$file_info_menu_name" "Size: $size bytes" "noop"
+  ADD_SUBMENU_ITEM "$file_info_menu_name" "Lines: $lines" "noop"
+  ADD_SUBMENU_ITEM "$file_info_menu_name" "Created on: $created_date" "noop"
+  ADD_SUBMENU_ITEM "$file_info_menu_name" "Created At: $created_time" "noop"
+  ADD_SUBMENU_ITEM "$file_info_menu_name" "Permissions: $permissions" "noop"
+  ADD_SUBMENU_ITEM "$file_info_menu_name" "← Back"
+
+  ADD_SUBMENU_ITEM "$menu_name" "C2EXFIL" "function_loot_c2exfil" "$file_path"
+  ADD_SUBMENU_ITEM "$menu_name" "Delete File" "function_loot_delete" "$file_path"
+  ADD_SUBMENU_ITEM "$menu_name" "← Back"
+}
+
+initialize_folder_menu() {
+  local menu_name="$1"
+  local folder_path="$2"
+
+  if [ -z "$(ls -A "$folder_path" 2>/dev/null)" ]; then
+    ADD_SUBMENU_ITEM "$menu_name" "No files found" "noop"
+    ADD_SUBMENU_ITEM "$menu_name" "Delete Folder" "function_loot_delete" "$folder_path"
+    ADD_SUBMENU_ITEM "$menu_name" "← Back"
+  else
+    populate_menu "$menu_name" "$folder_path"
+    ADD_SUBMENU_ITEM "$menu_name" "Delete Folder" "function_loot_delete" "$folder_path"
+    ADD_SUBMENU_ITEM "$menu_name" "← Back"
+  fi
+}
+
+populate_menu() {
+  local menu_name="$1"
+  local dir_path="$2"
+
+  local has_items=0
+
+  for item in "$dir_path"/*; do
+    if [ -d "$item" ]; then
+      has_items=1
+      local item_name="$(basename "$item")"
+      local submenu_name="submenu_$item_name"
+      ADD_SUBMENU_ITEM "$menu_name" "$item_name/ " "$submenu_name" "$item"
+      initialize_folder_menu "$submenu_name" "$item"
+    elif [ -f "$item" ]; then
+      has_items=1
+      local item_name="$(basename "$item")"
+      local filemenu_name="filemenu_$item_name"
+      ADD_SUBMENU_ITEM "$menu_name" "$item_name" "$filemenu_name" "$item"
+      initialize_file_menu "$filemenu_name" "$item"
+    fi
+  done
+
+  if [ "$has_items" -eq 0 ]; then
+    ADD_SUBMENU_ITEM "$menu_name" "No files found" "noop"
+  fi
+}
+
+noop() {
+  echo "" >/dev/null
+}
+
+function_loot_c2exfil() {
+  local file_path="$SELECTED_ITEM_DATA"
+  logger -t SharkLootMenu "C2EXFIL $SELECTED_ITEM_DATA"
+  resp="$(CONNECTION_CHECK)"
+  case $resp in
+    "No Internet")
+      ALERT "No Internet" -1 false
+      return
+      ;;
+    "No DNS")
+      ALERT "No DNS" -1 false
+      return
+      ;;
+  esac
+  sleep 0.5
+  resp="$(ps -w |grep -i "cc-client"|grep -v grep)"
+  if [ -z "$resp" ]; then
+    ALERT "C2 Client must be started" 3 false
+    resp="$(CONFIRMATION_DIALOG "Start C2?" "Start")"
+    if [ "$resp" = "Start" ]; then
+      C2CONNECT
+    fi
+  fi
+  C2EXFIL "$SELECTED_ITEM_DATA"
+  echo "C2EXFIL triggered for: $file_path"
+}
+
+function_loot_delete() {
+  local item_path="$SELECTED_ITEM_DATA"
+  resp="$(CONFIRMATION_DIALOG "Delete Item?" "Delete")"
+  if [ "$resp" = "Delete" ]; then
+    logger -t SharkLootMenu "Deleting $SELECTED_ITEM_DATA"
+    rm -rf "$SELECTED_ITEM_DATA"
+    ALERT "Loot Deleted" 3 false
+  fi
+}
+
+initialize_menu_system
+START_MENU
+

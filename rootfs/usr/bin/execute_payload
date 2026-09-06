@@ -1,0 +1,122 @@
+#!/bin/bash
+
+# This script MUST be used to execute payloads
+
+# DO NOT CALL THIS FROM WITHIN A RUNNING PAYLOAD
+
+LOCKFILE="/tmp/execute_payload.lock"
+# Attempt to acquire the lock
+exec 200>$LOCKFILE
+# Use flock to create a lock, non-blocking (-n) mode
+if ! flock -n 200; then
+    echo "Another instance of execute_payload is already running. Exiting."
+    logger -t Shark "Duplicate excute_payload prevented from being started"
+    ALERT "Payload Already Running" 3 false
+    exit 1
+fi
+
+execute_payload_cleanup() {
+    rm -f "$LOCKFILE"
+}
+
+trap execute_payload_cleanup SIGINT SIGTERM
+trap execute_payload_cleanup EXIT
+
+source /usr/sbin/screen_service
+
+LOG="logger -t Shark [*]"
+$LOG "Prepping PAYLOAD environment"
+
+if [ ! -d /root/loot ]; then
+    mkdir -p /root/loot;
+fi
+
+payload_path="/root/payload"
+payload="${1:-$(find "${payload_path}"/payload* 2>/dev/null | tail -n1)}"
+
+run_screen_service &
+payload_error=false
+
+
+payload_file="$(basename "${payload}")"
+payload_wd="$(dirname "${payload}")"
+
+case "$payload_file" in
+    "payload" | "payload.sh" | "payload.txt")
+        $LOG "Executing ${payload}"
+        sed -i 's/\r//g' "${payload}"
+        config_wait_for_link="$(GET_CONFIG_OPTION WAIT_FOR_LINK)"
+        if [ "$config_wait_for_link" = "FALSE" ]; then
+          $LOG "Skipping WAIT_FOR_LINK"
+          cat <<EOF > /tmp/payload.sh
+#!/bin/bash
+cd $payload_wd
+PAYLOAD_DIRECTORY="$payload_wd"
+source /usr/lib/spinner_tools
+source /usr/lib/progress_bar_tools
+source /usr/lib/list_tools
+source /usr/lib/card_list_tools
+source /usr/bin/WAIT_FOR_CLIENT
+trap 'STOP_SPINNER; STOP_PROGRESS_SPINNER' EXIT
+source $payload
+EOF
+        else
+          # Default behavior
+          cat <<EOF > /tmp/payload.sh
+#!/bin/bash
+cd $payload_wd
+PAYLOAD_DIRECTORY="$payload_wd"
+source /usr/lib/spinner_tools
+source /usr/lib/progress_bar_tools
+source /usr/lib/list_tools
+source /usr/lib/card_list_tools
+source /usr/bin/WAIT_FOR_CLIENT
+trap 'STOP_SPINNER; STOP_PROGRESS_SPINNER' EXIT
+WAIT_FOR_LINK
+source $payload
+EOF
+        fi
+        chmod +x /tmp/payload.sh
+        # SCREEN_WRITE "Start"
+        # SCREEN_WRITE "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀"
+        LOG "Payload Log"
+        LOG "▀▀▀▀▀▀▀▀▀▀▀▀▀▀"
+        /bin/bash -c "/tmp/payload.sh" > /dev/null 2>&1 &
+        payload_pid=$!
+        echo "$payload_pid" > /tmp/payload_pid
+        wait $payload_pid
+        rm -rf /tmp/payload.sh 2&>1 >/dev/null
+        ;;
+    *)
+        ALERT "PAYLOAD NOT FOUND" 10
+        /usr/bin/LED FAIL
+        payload_error=true
+        ;;
+esac
+
+rm /tmp/payload_pid
+touch /tmp/payload_complete
+
+if [ "$payload_error" = false ]; then
+  sleep 1
+  CLEAR_SCREEN
+  $LOG "Payload Complete"
+  BLOCKING_ALERT " █ █ █ █ █ █ █ █\n█ █ █ █ █ █ █ █ \n █ █ █ █ █ █ █ █\n▀ ▀ ▀ ▀ ▀ ▀ ▀ ▀ \nPAYLOAD COMPLETE\n▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ \n █ █ █ █ █ █ █ █\n█ █ █ █ █ █ █ █" 2 true true
+  sleep 0.5
+  SCREEN_WRITE "▄▄▄▄▄▄ ← Quit ▄"
+  # EMULATE_BUTTON_PRESS "switch-left"
+
+  $LOG "execute_payload waiting to exit"
+  while [ -e "/tmp/payload_complete" ]; do
+    sleep 0.5
+  done
+fi
+
+# Ensure all flags used to force rendering+button focus are cleaned up, so bugs dont persist past a single payload execution
+rm -f "/tmp/pause_alerts"
+rm -f "/tmp/pause_rendering"
+rm -f "/tmp/suppress_screen_service_scroll"
+rm -f "/tmp/no_payload_cancel_menu"
+rm -f "$LOCKFILE" # make sure to always cleanup, dont rely on trap if we dont need to
+$LOG "execute_payload exiting"
+exit 0

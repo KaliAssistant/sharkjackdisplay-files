@@ -1,0 +1,13 @@
+config lldpd 'config'
+    option enabled '1'
+    option receive '1'
+    option transmit '0'
+    option interfaces 'eth0'
+    option legacy_protocols '1'
+    option lldpmed '1'
+    option fast_start '5'
+    option management_pattern 'eth0'
+    option enable_cdp 1
+    option enable_fdp 1
+    option enable_sonmp 1
+    option enable_edp 1

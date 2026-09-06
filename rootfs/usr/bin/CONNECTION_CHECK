@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# This script is used to confirm internet access both by IP and by DNS
+# the script uses the values defined with config.txt for the IP and Hostname to check
+
+IP="$(GET_CONFIG_OPTION CONNECTION_CHECK_IP)"
+DOMAIN="$(GET_CONFIG_OPTION CONNECTION_CHECK_DOMAIN)"
+
+if ! ping -q -c 1 -W 1 $IP &>/dev/null 2>&1; then
+  echo "No Internet"
+  exit 1
+fi
+
+sleep 0.5
+
+if ! ping -q -c 1 -W 1 $DOMAIN &>/dev/null 2>&1; then
+  echo "No DNS"
+  exit 1
+fi
+
+echo "Connected"
+exit 0

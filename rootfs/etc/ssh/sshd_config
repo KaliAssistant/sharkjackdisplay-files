@@ -1,0 +1,9 @@
+PasswordAuthentication yes
+PubkeyAuthentication yes
+PermitRootLogin yes
+AuthorizedKeysFile .ssh/authorized_keys
+Subsystem sftp internal-sftp
+# support systems with many ssh keys trying to ssh-copy-id
+MaxAuthTries 10
+# Disable fail2ban-esk behavior that punishes failures to auth and overrides MaxAuthRetries.
+PerSourcePenalties No

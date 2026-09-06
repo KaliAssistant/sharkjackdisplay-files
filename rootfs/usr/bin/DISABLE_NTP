@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Disables the NTP service
+
+/etc/init.d/sysntpd disable
+/etc/init.d/sysntpd stop

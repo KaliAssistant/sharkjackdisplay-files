@@ -1,0 +1,184 @@
+#!/bin/bash
+
+# This scirpt is used to prompt the user with a multi-character number picker
+# skips non-numeric characters
+
+# Usage
+# NUMBER_PICKER "Subnet" "255.255.255.0"
+
+
+source /usr/lib/shark_helpers
+disable_cursor_blink
+
+numbers=()
+if [[ -n "$2" ]]; then
+    input="$2"
+    for ((i = 0; i < ${#input}; i++)); do
+        char="${input:i:1}"
+        if [[ "$char" =~ [0-9] ]]; then
+            numbers+=("$char")
+        else
+            numbers+=("$char")
+        fi
+    done
+fi
+
+selected_digit=0
+for i in "${!numbers[@]}"; do
+    if [[ "${numbers[$i]}" =~ [0-9] ]]; then
+        selected_digit=$i
+        break
+    fi
+done
+in_edit_mode=false
+
+format_item_text() {
+  local pre_formatted="$2"
+  local item="$1"
+  local item_length=${#item}
+  if [[ $pre_formatted == "true" ]]; then
+    item_length=$((item_length - 14))  
+  fi
+  local total_spaces=$((16 - item_length))
+  local left_spaces=$((total_spaces / 2))
+  local right_spaces=$((total_spaces - left_spaces))
+  printf "%*s%s%*s" "$left_spaces" "" "$item" "$right_spaces" ""
+}
+
+title="$(format_item_text "${1}")"
+
+number_picker() {
+  exit_number_picker=false
+  while [[ $exit_number_picker == "false" ]]; do
+    render_number_picker
+    button_input=$(/usr/sbin/dialog_button_listener)
+    btn_number_picker_input "$button_input"
+  done
+}
+
+render_number_picker() {
+
+  local top_line=""
+  for i in "${!numbers[@]}"; do
+    if [[ $i -eq $selected_digit ]]; then
+      top_line+="▲"
+    else
+      top_line+=" "
+    fi
+  done
+  top_line=$(format_item_text "$top_line")
+
+  local middle_line=""
+  for i in "${!numbers[@]}"; do
+    if [[ $i -eq $selected_digit ]]; then
+      if [[ $in_edit_mode == true ]]; then
+        middle_line+=$(printf "\033[7m%s\033[0m" "${numbers[$i]}")
+      else
+        middle_line+="${numbers[$i]}"
+      fi
+    else
+      middle_line+="${numbers[$i]}"
+    fi
+  done
+
+  local visible_length=0
+  for char in "${numbers[@]}"; do
+    ((visible_length++))
+  done
+  local total_spaces=$((16 - visible_length))
+  local left_spaces=$((total_spaces / 2))
+  local right_spaces=$((total_spaces - left_spaces))
+  middle_line=$(printf "%*s%s%*s" "$left_spaces" "" "$middle_line" "$right_spaces" "")
+
+  local bottom_line=""
+  for i in "${!numbers[@]}"; do
+    if [[ $i -eq $selected_digit ]]; then
+      bottom_line+="▼"
+    else
+      bottom_line+=" "
+    fi
+  done
+  bottom_line=$(format_item_text "$bottom_line")
+
+  local save_option="Save"
+  local back_option="← Back"
+  if [[ $selected_digit -eq $((${#numbers[@]} + 1)) ]]; then
+    save_option="\033[7mSave\033[0m"
+  elif [[ $selected_digit -eq ${#numbers[@]} ]]; then
+    back_option="\033[7m← Back\033[0m"
+  fi
+  backsave="$(center_special_text "$back_option $save_option")"
+
+  clear_screen
+  screen_write "$title\n\n$top_line\n$middle_line\n$bottom_line\n\n$backsave\n"
+}
+
+btn_number_picker_input() {
+  local button_input=$1
+
+  case "$button_input" in
+    "switch-middle")
+      if [[ $selected_digit -eq ${#numbers[@]} ]]; then
+        handle_number_picker_back
+      elif [[ $selected_digit -eq $((${#numbers[@]} + 1)) ]]; then
+        save_number
+      elif [[ "${numbers[$selected_digit]}" =~ [0-9] ]]; then
+        if [[ $in_edit_mode == true ]]; then
+          in_edit_mode=false
+        else
+          in_edit_mode=true
+        fi
+      fi
+      ;;
+    "switch-left")
+      if [[ $in_edit_mode == true ]]; then
+        local value="${numbers[$selected_digit]}"
+        value=$((value - 1))
+        [[ $value -lt 0 ]] && value=9
+        numbers[$selected_digit]="$value"
+      else
+        # Navigate down (next in array)
+        ((selected_digit++))
+        [[ $selected_digit -gt $((${#numbers[@]} + 1)) ]] && selected_digit=0
+        while [[ ! "${numbers[$selected_digit]}" =~ [0-9] && $selected_digit -lt ${#numbers[@]} ]]; do
+          ((selected_digit++))
+          [[ $selected_digit -gt $((${#numbers[@]} + 1)) ]] && selected_digit=0
+        done
+      fi
+      ;;
+    "switch-right")
+      if [[ $in_edit_mode == true ]]; then
+        local value="${numbers[$selected_digit]}"
+        value=$((value + 1))
+        [[ $value -gt 9 ]] && value=0
+        numbers[$selected_digit]="$value"
+      else
+        ((selected_digit--))
+        [[ $selected_digit -lt 0 ]] && selected_digit=$((${#numbers[@]} + 1))
+        while [[ ! "${numbers[$selected_digit]}" =~ [0-9] && $selected_digit -ge 0 ]]; do
+          ((selected_digit--))
+          [[ $selected_digit -lt 0 ]] && selected_digit=$((${#numbers[@]} + 1))
+        done
+      fi
+      ;;
+  esac
+}
+
+handle_number_picker_back() {
+  exit_number_picker=true
+  echo "← Back"
+}
+
+save_number() {
+  local formatted_numbers=""
+  for char in "${numbers[@]}"; do
+    formatted_numbers+="$char"
+  done
+  exit_number_picker=true
+  echo "$formatted_numbers"
+}
+
+echo "NUMBER_PICKER" >> /tmp/suppress_screen_service_scroll
+number_picker
+rm /tmp/suppress_screen_service_scroll
+

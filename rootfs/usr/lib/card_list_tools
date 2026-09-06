@@ -1,0 +1,199 @@
+#!/bin/bash
+
+# This is a collection of functions intended to be sourced and called
+# to generate a card menu system to be used within a payload
+
+# DuckyScript functions intended for use are in ALL CAPS
+
+# Find more compelte example code within the examples directory of the payload repo
+
+# Simple usage example
+# # Example function
+# example_function() {
+#   echo "Selected item data: $current_selected_item_data"
+# }
+
+# # Initialize the cardmenu system
+# initialize_cardmenu_system() {
+#   ADD_CARDMENU_ITEM "Option 1" "example_function" "Data 1"
+#   ADD_CARDMENU_ITEM "Option 2" "example_function" "Data 2"
+#   ADD_CARDMENU_ITEM "Subcardmenu" "subcardmenu1" ""
+#   ADD_CARDMENU_ITEM "Long Text Line Break Needed" "subcardmenu1" ""
+#   ADD_CARDMENU_ITEM "Extra Really Really Long Text Line Break Needed Extra Really Really Long Text Line Break Needed" "subcardmenu1" ""
+#   ADD_CARDMENU_ITEM "Quit" "exit_cardmenu" ""
+
+#   ADD_SUBCARDMENU_ITEM "subcardmenu1" "← Back" "" ""
+#   ADD_SUBCARDMENU_ITEM "subcardmenu1" "cloudc2 multi file exfiltration" "example_function" "Subcardmenu Data"
+#   ADD_SUBCARDMENU_ITEM "subcardmenu1" "Example Action" "example_function" "Subcardmenu Data"
+# }
+
+# # Start the cardmenu
+# initialize_cardmenu_system
+# START_CARDMENU
+
+
+source /usr/lib/shark_helpers
+
+declare -A cardmenus
+_cardmenu_stack=()
+_current_cardmenu="main_menu"
+_selected_cardindex=0
+_cardlist_menu_running=true
+
+# Add a cardmenu item to the main menu
+ADD_CARDMENU_ITEM() {
+  local label="$1"
+  local action="$2"
+  local data="$3"
+  local cardmenu_name="main_menu"
+
+  if [[ -z "${cardmenus[$cardmenu_name]}" ]]; then
+    cardmenus["$cardmenu_name"]=""
+  fi
+  cardmenus["$cardmenu_name"]+="$label|$action|$data;"
+}
+
+# Add a cardmenu item to a specific submenu
+ADD_SUBCARDMENU_ITEM() {
+  local cardmenu_name="$1"
+  local label="$2"
+  local action="$3"
+  local data="$4"
+
+  if [[ -z "${cardmenus[$cardmenu_name]}" ]]; then
+    cardmenus["$cardmenu_name"]=""
+  fi
+  cardmenus["$cardmenu_name"]+="$label|$action|$data;"
+}
+
+render_cardmenu() {
+  local up_indicator="┌──────────────┐\n"
+  local down_indicator="└──────────────┘"
+
+  IFS=';' read -r -a cardmenu_items <<< "${cardmenus[$_current_cardmenu]}"
+  local total_items=${#cardmenu_items[@]}
+
+  if [[ $_selected_cardindex -gt 0 ]]; then
+    up_indicator="┌──────↑───────┐\n"
+  fi
+  if [[ $_selected_cardindex -lt $((total_items - 1)) ]]; then
+    down_indicator="└──────↓───────┘"
+  fi
+
+  local item="${cardmenu_items[$_selected_cardindex]}"
+  local label="${item%%|*}"
+  out="\n\n$(split_and_center_vertically "$label" 3 3)\n"
+
+  clear_screen
+  screen_write "$up_indicator$out\n\n$down_indicator"
+}
+
+handle_card_selection() {
+  IFS=';' read -r -a cardmenu_items <<< "${cardmenus[$_current_cardmenu]}"
+  local selected="${cardmenu_items[$_selected_cardindex]}"
+  SELECTED_ITEM="${selected%%|*}"
+  local action_data="${selected#*|}"
+  local action="${action_data%%|*}"
+  SELECTED_ITEM_DATA="${action_data#*|}"
+
+  if [[ "$SELECTED_ITEM" == "Back" ]] || [[ "$SELECTED_ITEM" == "← Back" ]]; then
+    if [[ ${#_cardmenu_stack[@]} -gt 0 ]]; then
+      _current_cardmenu="${_cardmenu_stack[-1]}"
+      unset _cardmenu_stack[-1]
+      _selected_cardindex=0
+    else
+      exit_cardmenu
+    fi
+  elif [[ "${cardmenus[$action]+_}" ]]; then
+    _cardmenu_stack+=("$_current_cardmenu")
+    _current_cardmenu="$action"
+    _selected_cardindex=0
+  elif [[ "$(type -t "$action")" == "function" ]]; then
+    $action
+  fi
+}
+
+navigate_cardmenu() {
+  local direction="$1"
+  IFS=';' read -r -a cardmenu_items <<< "${cardmenus[$_current_cardmenu]}"
+  local cardmenu_length=${#cardmenu_items[@]}
+
+  case "$direction" in
+    up) ((_selected_cardindex--)); [[ $_selected_cardindex -lt 0 ]] && _selected_cardindex=$((cardmenu_length - 1)) ;;
+    down) ((_selected_cardindex++)); [[ $_selected_cardindex -ge $cardmenu_length ]] && _selected_cardindex=0 ;;
+  esac
+}
+
+EXIT_SUBCARDMENU() {
+  if [[ ${#_cardmenu_stack[@]} -gt 0 ]]; then
+    current_menu="${_cardmenu_stack[-1]}"
+    unset _cardmenu_stack[-1]
+    _selected_cardindex=0
+  else
+    EXIT_CARDMENU
+  fi
+}
+
+EXIT_CARDMENU() {
+  _cardlist_menu_running=false
+}
+
+# Delete a menu item
+DELETE_CARDMENU_ITEM() {
+  local menu_name="$1"
+  local label="$2"
+
+  if [[ -n "${cardmenus[$menu_name]}" ]]; then
+    local updated_menu=""
+    IFS=';' read -r -a menu_items <<< "${cardmenus[$menu_name]}"
+    for item in "${menu_items[@]}"; do
+      [[ "${item%%|*}" != "$label" ]] && updated_menu+="$item;"
+    done
+    cardmenus["$menu_name"]="$updated_menu"
+  fi
+}
+
+# Clear a menu
+CLEAR_CARDMENU() {
+  local menu_name="$1"
+  cardmenus["$menu_name"]=""
+}
+
+# Clear all menus
+CLEAR_CARDMENUS() {
+  declare -A cardmenus
+  _cardmenu_stack=()
+  _current_cardmenu="main_menu"
+  _selected_cardindex=0
+  _cardlist_menu_running=true
+
+}
+
+# Select a menu by name
+SELECT_CARDMENU() {
+  local menu_name="$1"
+  if [[ -n "${cardmenus[$menu_name]}" ]]; then
+    _cardmenu_stack+=("$_list_current_menu")
+    _current_cardmenu="$menu_name"
+    _selected_cardindex=0
+  fi
+  handle_selection
+}
+
+START_CARDMENU() {
+  echo "card_list_tools" >> /tmp/suppress_screen_service_scroll
+  while $_cardlist_menu_running; do
+    render_cardmenu
+    button_input=$(/usr/sbin/dialog_button_listener)
+    if [ "$_cardlist_menu_running" = "true" ]; then
+      case "$button_input" in
+        "switch-middle") rm /tmp/suppress_screen_service_scroll; handle_card_selection; echo "card_list_tools" >> /tmp/suppress_screen_service_scroll ;;
+        "switch-left") navigate_cardmenu down ;;
+        "switch-right") navigate_cardmenu up ;;
+        *) ;;
+      esac
+    fi
+  done
+  rm /tmp/suppress_screen_service_scroll
+}
+

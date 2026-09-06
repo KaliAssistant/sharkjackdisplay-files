@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# This script can be used to restart shark framework
+# useful during testing modifications or recovering a device configuration error
+
+/etc/init.d/shark stop
+echo "/etc/init.d/shark start" | at now

@@ -1,0 +1,768 @@
+Package: terminfo
+Version: 6.4-2
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libopenssl3
+ABIVersion: 3
+Version: 3.0.15-1
+Depends: libc, libatomic1
+Provides: libopenssl
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libc
+Version: 1.2.4-4
+Depends: libgcc1
+Status: install hold installed
+Essential: yes
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: opkg
+Version: 2022-02-24-d038e5b6-2
+Depends: libc, uclient-fetch, libpthread, libubox20230523
+Status: install user installed
+Essential: yes
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/opkg.conf f38c19f696ea87c0b30eb5bfeb8657237f4625e1a749c58b99f01595edfb6446
+ /etc/opkg/customfeeds.conf 61d1f3aa62fe977614ed0c2f0ad3b2ee2f7b451bfb34812071d86d31a4d43d4a
+Installed-Time: 1727094886
+
+Package: libpthread
+Version: 1.2.4-4
+Depends: libgcc1
+Status: install hold installed
+Essential: yes
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: ubus
+Version: 2023-06-05-f787c97b-1
+Depends: libc, libubus20230605, libblobmsg-json20230523, ubusd
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: libuci20130104
+ABIVersion: 20130104
+Version: 2023-08-10-5781664d-1
+Depends: libc, libubox20230523
+Provides: libuci
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: busybox
+Version: 1.36.1-1
+Depends: libc, jsonfilter
+Conflicts: busybox-selinux
+Status: install user installed
+Essential: yes
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/syslog.conf e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+Installed-Time: 1727094886
+
+Package: odhcpd
+Version: 2025-10-02-b14cf98c-3
+Depends: libc, libjson-c5, libubox20230523, libuci20130104, libubus20230605, libnl-tiny1
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: jq
+Version: 1.6-2
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: protobuf-lite
+Version: 3.17.3-1
+Depends: libc, zlib, libpthread, libatomic1, libstdcpp6
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: bash
+Version: 5.2.15-1
+Depends: libc, libncurses6, libreadline8
+Status: install user installed
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/bash.bashrc 096d8e6a4da75033f12dc764cd45055e922cdba8292f3c22216f7d5c9ed6e454
+ /etc/profile.d/sys_bashrc.sh fc2d605e812275345dbc61b6c5ca7dabbe8f3fa8e21c0856675c8ecd8d28da0a
+Installed-Time: 1727094886
+
+Package: swconfig
+Version: 12
+Depends: libc, libuci20130104, libnl-tiny1
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libnl-tiny1
+ABIVersion: 1
+Version: 2023-07-27-bc92a280-1
+Depends: libc
+Provides: libnl-tiny
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: getrandom
+Version: 2022-08-13-4c7b720b-2
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: openssh-server
+Version: 9.8_p1-2
+Depends: libc, libopenssl3, zlib, openssh-keygen
+Status: install user installed
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/ssh/sshd_config a13db15ab58f8ff9c0fd6afde85ef7d17bf2a89e29d5148eaa1281d98d9fead8
+Installed-Time: 1727094886
+
+Package: libustream-openssl20201210
+ABIVersion: 20201210
+Version: 2023-02-25-498f6e26-1
+Depends: libc, libubox20230523, libopenssl3
+Provides: libustream-openssl
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libcap
+Version: 2.69-1
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: procd-ujail
+Version: 2023-06-25-2db83655-2
+Depends: libc, libubox20230523, libubus20230605, libuci20130104, libblobmsg-json20230523
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: base-files
+Version: 1563-r24106-10cc5fcd00
+Depends: libc, netifd, jsonfilter, usign, openwrt-keyring, fstools, fwtool
+Status: install user installed
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/ethers 56bda09b0aa3d1e88107bfa8a1c6e4449d5c1f47245dc1c4037ff9b5db163b7c
+ /etc/group 45e8cab268d4a2254d48ccb1f889630047e81758de54a614cad5449fdbebe19c
+ /etc/hosts c1a978d90673437b35fa9494e0a54294062c152bb653d490b718052ab88447fd
+ /etc/inittab 8b395f7d827753e1e92d4a1c369d9fe16caa23bf742b3f78e4599c4dd9b1b6e3
+ /etc/iproute2/rt_protos a0712b1771c8d5f3e0dcf9a6314880e71aa3498ea1ae873535bdfcf70d814061
+ /etc/iproute2/rt_tables f771e2b81741f70e3faf658dc504f0dc048672fc8caaadea15e46c35da3de8f8
+ /etc/passwd 6a451aa33393f47ade89b8bce4d9711818c2630394c3967265ffed276bb25a55
+ /etc/profile 73a6177caf76a76d178111e57eb6ee95c3ba06ce2fc6864c7fb89cacf433c66d
+ /etc/protocols 7d551355d5540b07b9d86e623cbbc4abecbb94d2a662b3afcc917940eb0e3d52
+ /etc/rc.local 515018aa94eb4937dade12dc0d69890b352af35a5ab5fb8203f9ed10990ac06f
+ /etc/services 754ccc71ca347bc79ac4c45139d416b7cf1e65a919dad1db15613a216cd6b9cc
+ /etc/shadow 9000a74fcbf027301e784909e74e2cfff1b879707432090fadedc8527858873e
+ /etc/shells 8b35ce73c18161a7d7ed16fa244410993bd031515260e3e0c11749047df48d0a
+ /etc/shinit f633939cdda16a3116225a578f457295b2a0da824c47d5f0e90a58806c059321
+ /etc/sysctl.conf c02fe88dc055a1eaee9e7cb631760a3a5a9cea55610b42aa45196838c6f1a55e
+ /etc/sysupgrade.conf 9e87b05fe2f12c84d1c465b396322748479f64bc40e5bab061887f0bd95020a6
+Installed-Time: 1727094886
+
+Package: libpcre
+Version: 8.45-5
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: macchanger
+Version: 1.7.0-3
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: netifd
+Version: 2024-01-04-c18cc79d-2
+Depends: libc, libuci20130104, libnl-tiny1, libubus20230605, ubus, ubusd, jshn, libubox20230523
+Status: install user installed
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/udhcpc.user 4dabffbc2110a29e01babc63d9b8db94da49efd3ed784d35b49a559ac8ce7035
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: coreutils
+Version: 9.3-1
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: autossh
+Version: 1.4g-4
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/config/autossh 263375ae66cd9e2c2115315f741539da87764e18cdcbb794b06d3a80c4dd7270
+Installed-Time: 1727094886
+
+Package: dnsmasq
+Version: 2.93-1
+Depends: libc, libubus20230605
+Status: install user installed
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/config/dhcp a3ab720d8cd674dced9d6c22963a900e700480d9e666285c52c0cf0a418ba5bb
+ /etc/dnsmasq.conf 1e6ab19c1ae5e70d609ac7b6246541d52042e4dee1892f825266507ef52d7dfd
+Installed-Time: 1727094886
+
+Package: procd
+Version: 2023-06-25-2db83655-2
+Depends: libc, ubusd, ubus, libjson-script20230523, ubox, libubox20230523, libubus20230605, libblobmsg-json20230523, libjson-c5, jshn
+Conflicts: procd-selinux
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: ubusd
+Version: 2023-06-05-f787c97b-1
+Depends: libc, libubox20230523, libblobmsg-json20230523
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: libelf1
+ABIVersion: 1
+Version: 0.189-1
+Depends: libc, zlib
+Provides: libelf, libelf11
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: coreutils-dd
+Version: 9.3-1
+Depends: libc, coreutils
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Alternatives: 300:/bin/dd:/usr/libexec/dd-coreutils
+
+Package: libmbedtls12
+ABIVersion: 12
+Version: 2.28.9-1
+Depends: libc
+Provides: libmbedtls
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libubus20230605
+ABIVersion: 20230605
+Version: 2023-06-05-f787c97b-1
+Depends: libc, libubox20230523
+Provides: libubus
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: libgnutls
+Version: 3.8.3-1
+Depends: libc, libnettle8, libgmp10, libatomic1
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libsqlite3-0
+ABIVersion: -0
+Version: 3410200-1
+Depends: libc, libpthread, zlib
+Provides: libsqlite3
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: tcpdump
+Version: 4.99.4-1
+Depends: libc, libpcap1
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: fstools
+Version: 2023-02-28-bfe882d5-1
+Depends: libc, ubox
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: uclient-fetch
+Version: 2023-04-13-007d9454-1
+Depends: libc, libuclient20201210
+Provides: wget
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Alternatives: 200:/usr/bin/wget:/bin/uclient-fetch
+
+Package: ethtool
+Version: 6.3-1
+Depends: libc
+Conflicts: ethtool-full
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: uci
+Version: 2023-08-10-5781664d-1
+Depends: libc, libuci20130104
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: nmap
+Version: 7.93-3
+Depends: libc, libpcap1, libstdcpp6, zlib, libpcre
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libpcre2
+Version: 10.42-1
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: curl
+Version: 8.7.1-r1
+Depends: libc, libcurl4
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libgmp10
+ABIVersion: 10
+Version: 6.2.1-1
+Depends: libc
+Provides: libgmp
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: mtd
+Version: 26
+Depends: libc, libubox20230523
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: procd-seccomp
+Version: 2023-06-25-2db83655-2
+Depends: libc, libubox20230523, libblobmsg-json20230523
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libjson-script20230523
+ABIVersion: 20230523
+Version: 2023-05-23-75a3b870-1
+Depends: libc, libubox20230523
+Provides: libjson-script
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: urandom-seed
+Version: 3
+Depends: libc, getrandom
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: socat
+Version: 1.7.4.4-1
+Depends: libc, libpthread, librt
+Status: install user installed
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/config/socat e5d7b03b7f445bf833eb0bd379e4756e80fb5fa2089bb0d5f4c06e1d9d1bca45
+Installed-Time: 1727094886
+
+Package: libnettle8
+ABIVersion: 8
+Version: 3.9.1-1
+Depends: libc, libgmp10
+Provides: libnettle
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: kmod-leds-gpio
+Version: 5.15.167-1
+Depends: kernel (= 5.15.167-1-d7daf19cda0d7b445cba2ed2785af6a0)
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: kmod-gpio-button-hotplug
+Version: 5.15.167-3
+Depends: kernel (= 5.15.167-1-d7daf19cda0d7b445cba2ed2785af6a0)
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: logd
+Version: 2022-08-13-4c7b720b-2
+Depends: libc, libubox20230523, libubus20230605, libblobmsg-json20230523
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libreadline8
+ABIVersion: 8
+Version: 8.2-1
+Depends: libc, libncursesw6
+Provides: libreadline
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: librt
+Version: 1.2.4-4
+Depends: libpthread
+Status: install hold installed
+Essential: yes
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: rsync
+Version: 3.2.7-1
+Depends: libc, libpopt0, zlib
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: openssh-keygen
+Version: 9.8_p1-2
+Depends: libc, libopenssl3, zlib
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Alternatives: 200:/usr/bin/ssh-keygen:/usr/libexec/ssh-keygen-openssh
+
+Package: coreutils-sleep
+Version: 9.3-1
+Depends: libc, coreutils
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Alternatives: 300:/bin/sleep:/usr/libexec/sleep-coreutils
+
+Package: openwrt-keyring
+Version: 2022-03-25-62471e69-2
+Depends: libc
+Provides: lede-keyring
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: jshn
+Version: 2023-05-23-75a3b870-1
+Depends: libc, libjson-c5, libubox20230523, libblobmsg-json20230523
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: ca-certificates
+Version: 20260601-1
+Depends: libc
+Provides: ca-certs
+Status: install user installed
+Architecture: all
+Installed-Time: 1727094886
+
+Package: libncurses6
+ABIVersion: 6
+Version: 6.4-2
+Depends: libc, terminfo
+Provides: libncursesw, libncurses, libncursesw6
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: netcat
+Version: 0.7.1-2
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libpcap1
+ABIVersion: 1
+Version: 1.10.4-1
+Depends: libc
+Provides: libpcap
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libjson-c5
+ABIVersion: 5
+Version: 0.16-3
+Depends: libc
+Provides: libjson-c
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: libcurl4
+ABIVersion: 4
+Version: 8.7.1-r1
+Depends: libc, libmbedtls12, libnghttp2-14, ca-bundle
+Provides: libcurl
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: usign
+Version: 2020-05-23-f1f65026-1
+Depends: libc, libubox20230523
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: zlib
+Version: 1.2.13-1
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: libblobmsg-json20230523
+ABIVersion: 20230523
+Version: 2023-05-23-75a3b870-1
+Depends: libc, libjson-c5, libubox20230523
+Provides: libblobmsg-json
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: ca-bundle
+Version: 20260601-1
+Depends: libc
+Provides: ca-certs
+Status: install user installed
+Architecture: all
+Installed-Time: 1727094886
+
+Package: libuclient20201210
+ABIVersion: 20201210
+Version: 2023-04-13-007d9454-1
+Depends: libc, libubox20230523
+Provides: libuclient
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: at
+Version: 3.2.2-1
+Depends: libc, libelf1
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: nping
+Version: 7.93-3
+Depends: libc, libpcap1, libpthread, libstdcpp6
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libgcc1
+ABIVersion: 1
+Version: 12.3.0-4
+Provides: libgcc
+Status: install hold installed
+Essential: yes
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: libstdcpp6
+ABIVersion: 6
+Version: 12.3.0-4
+Provides: libstdcpp
+Status: install hold installed
+Essential: yes
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: ubox
+Version: 2022-08-13-4c7b720b-2
+Depends: libc, libubox20230523, ubusd, ubus, libubus20230605, libuci20130104
+Status: install user installed
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/modules.conf 83dab538976e37112de89ad9569f77410553bd0a8393d19ed656353218ccf6ae
+Installed-Time: 1727094886
+Auto-Installed: yes
+Alternatives: 100:/sbin/rmmod:/sbin/kmodloader, 100:/sbin/insmod:/sbin/kmodloader, 100:/sbin/lsmod:/sbin/kmodloader, 100:/sbin/modinfo:/sbin/kmodloader, 100:/sbin/modprobe:/sbin/kmodloader
+
+Package: kernel
+Version: 5.15.167-1-d7daf19cda0d7b445cba2ed2785af6a0
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: openssh-client
+Version: 9.8_p1-2
+Depends: libc, libopenssl3, zlib
+Status: install user installed
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/ssh/ssh_config d12f4f223cd089cc47121cdfcd10463965db41e63c425c68e9a2bbf7b3e26a3f
+Installed-Time: 1727094886
+Alternatives: 200:/usr/bin/ssh:/usr/libexec/ssh-openssh, 200:/usr/bin/scp:/usr/libexec/scp-openssh
+
+Package: libevent2-7
+ABIVersion: -7
+Version: 2.1.12-1
+Depends: libc
+Provides: libevent2
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libatomic1
+ABIVersion: 1
+Version: 12.3.0-4
+Depends: libgcc1
+Provides: libatomic
+Status: install hold installed
+Essential: yes
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: lldpd
+Version: 1.0.17-5
+Depends: libc, libcap, libevent2-7, libjson-c5
+Status: install user installed
+Architecture: mipsel_24kc
+Conffiles:
+ /etc/config/lldpd eb8dddcfc3a4978836fb90615de04d82e7c65b0b6b7ba331ffe89947ffd5f719
+Installed-Time: 1727094886
+
+Package: cc-client
+Version: sharkjackdisplay-1
+Depends: libc, libpthread, libstdcpp6, libcurl4, libopenssl3, libsqlite3-0, protobuf-lite
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: wget-ssl
+Version: 1.21.4-1
+Depends: libc, libpcre2, zlib, libopenssl3, librt
+Provides: gnu-wget, wget
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Alternatives: 300:/usr/bin/wget:/usr/libexec/wget-ssl
+
+Package: fwtool
+Version: 2019-11-12-8f7fe925-1
+Depends: libc
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: jsonfilter
+Version: 2024-01-23-594cfa86-1
+Depends: libc, libubox20230523, libjson-c5
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: libubox20230523
+ABIVersion: 20230523
+Version: 2023-05-23-75a3b870-1
+Depends: libc
+Provides: libubox
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: hping3
+Version: 2014-12-26-3547c769-1
+Depends: libc, libpcap1
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libpopt0
+ABIVersion: 0
+Version: 1.19-1
+Depends: libc
+Provides: libpopt
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: urngd
+Version: 2023-11-01-44365eb1-1
+Depends: libc, libubox20230523
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+
+Package: libnghttp2-14
+ABIVersion: -14
+Version: 1.57.0-1
+Depends: libc
+Provides: libnghttp2
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+Auto-Installed: yes
+
+Package: arp-scan
+Version: 1.10.0-2
+Depends: libc, libpcap1
+Status: install user installed
+Architecture: mipsel_24kc
+Installed-Time: 1727094886
+

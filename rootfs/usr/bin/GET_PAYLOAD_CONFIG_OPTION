@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Helper to fetch a config option from a payload .cfg file, or fall back to a default if none found
+
+# GET_PAYLOAD_CONFIG_OPTION "THEME" <default value if none found>
+
+param="$1"
+default_value="$2"
+config_file="${3:-"default.cfg"}"
+
+
+value=$(grep -E "^${param}" "$config_file" | cut -d ' ' -f2- | sed 's/^ //')
+
+if [[ -n "$value" ]]; then
+  echo "$value"
+else
+  echo "$default_value"
+fi
+

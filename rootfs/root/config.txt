@@ -1,0 +1,111 @@
+##########################
+# Device Startup
+####################################################
+# Automatically boot into this netmode before entering ARMING MODE or ATTACK MODE (OFF|DHCP_SERVER|DHCP_CLIENT|STATIC)
+BOOT_NETMODE OFF
+
+# Automatically start payload on boot (TRUE|FALSE)
+AUTOEXEC TRUE
+
+# Window to cancel automatic execution of default payload upon boot (INTEGER)
+AUTOEXEC_TIMEOUT 5
+
+# Window to cancel automatic execution of default payload will flash the screen during countdown (TRUE|FALSE)
+AUTOEXEC_TIMEOUT_FLASH TRUE
+
+# eth0 MAC address on boot (DEFAULT|RANDOM|<MAC>)
+# to assign a static non default MAC simply use it as the config value below
+# to use a semi-random MAC you may replace values with X to have those values randomized
+MAC_ADDRESS DEFAULT
+
+
+##########################
+# Executing Payload Defaults
+####################################################
+# Automatically wait for eth0 network link up before executing payloads (TRUE|FALSE)
+# Best practice is to use this command within your payload, this option as a default is only a convenience feature for advanced usage
+WAIT_FOR_LINK FALSE
+
+
+##########################
+# ARMING MODE Defaults
+####################################################
+# Default NETMODE when device enters ARMING MODE (OFF|DHCP_SERVER|DHCP_CLIENT|STATIC|AUTO)
+ARMING_MODE_NETMODE DHCP_SERVER
+
+# Automatically start SSH Server when device enters ARMING MODE (TRUE|FALSE)
+ARMING_MODE_SSH TRUE
+
+
+##########################
+# Appearance
+####################################################
+# Device Screen Theme - controls if screen is inverted (DARK|LIGHT)
+THEME DARK
+
+# Controls if screen backlight is enabled (TRUE|FALSE)
+BACKLIGHT FALSE
+
+# Controls default screensaver (SHARK|BLANK|TOASTER|NONE)
+SCREENSAVER SHARK
+
+# Controls default screensaver timeout in minutes (INTEGER)
+SCREENSAVER_TIMEOUT 5
+
+##########################
+# Service Defaults
+####################################################
+# Controls if C2 client is enabled at boot regardless of ARMING/ATTACK MODE (TRUE|FALSE)
+C2_ENABLED FALSE
+
+# Controls if NTP service is enabled at boot regardless of ARMING/ATTACK MODE (TRUE|FALSE)
+NTP_ENABLED FALSE
+
+# Controls if SSH service is enabled at boot regardless of ARMING|ATTACK MODE (TRUE|FALSE)
+SSH_ENABLED FALSE
+
+
+##########################
+# NETMODE Defaults
+####################################################
+# IP used for all NETMODE configurations
+NETMODE_IP 172.16.24.1
+
+# Subnet mask used for all NETMODE configurations
+NETMODE_NETMASK 255.255.255.0
+
+# Gateway used for all NETMODE configurations
+NETMODE_GATEWAY 172.16.24.1
+
+
+##########################
+# SharkLink Defaults
+####################################################
+# Code used to validate communication between sharks when running SharkLink
+PAIRING_CODE 1-3-3-7
+
+# Port used to communicate between sharks when running SharkLink
+PAIRING_PORT 1337
+
+
+##########################
+# PROTECTED ARMING MODE
+####################################################
+# WARNING, MISCONFIGURING THIS WILL REQUIRE A FULL FACTORY RESET
+
+# Controls if protected arming mode is enabled or disabled (FALSE|TRUE)
+PROTECTED_ARMING_MODE FALSE
+
+# Protected arming mode pin
+PROTECTED_ARMING_MODE_PASS 0-0-0-0
+
+
+##########################
+# CONNECTION CHECKING
+####################################################
+
+# IP to be used when checking for connection
+CONNECTION_CHECK_IP 8.8.8.8
+
+# Domain to be used when checking for connection
+CONNECTION_CHECK_DOMAIN google.com

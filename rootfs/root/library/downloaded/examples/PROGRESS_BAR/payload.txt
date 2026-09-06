@@ -1,0 +1,33 @@
+#!/bin/bash
+
+SCREEN_WRITE "loading"
+
+sleep 1
+
+# Create progress bar with title "Loading..."
+CREATE_PROGRESS_BAR "Loading..."
+
+sleep 1
+
+# Add 10 the progress state
+INCREMENT_PROGRESS 10
+
+sleep 1
+
+INCREMENT_PROGRESS 10
+
+sleep 1
+
+# Set the progress state to 70
+SET_PROGRESS 70
+
+sleep 0.5
+SET_PROGRESS 80
+sleep 0.5
+SET_PROGRESS 90
+sleep 0.5
+SET_PROGRESS 100
+
+sleep 1
+
+SCREEN_WRITE "Complete"

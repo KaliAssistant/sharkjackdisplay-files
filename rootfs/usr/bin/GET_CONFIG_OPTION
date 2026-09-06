@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# This script is used to retrieve config.txt values
+
+# Usage:
+# GET_CONFIG_OPTION "THEME"
+
+# not intended for use in payloads
+
+param="$1"
+config_file="/root/config.txt"
+
+if [[ ! -f "$config_file" ]]; then
+    VALIDATE_CONFIG # will generate a new default config
+fi
+
+value=$(grep -E "^${param} " "$config_file" | cut -d ' ' -f2- | sed 's/^ //')
+
+if [[ -n "$value" ]]; then
+  logger -t SharkConfig "Get Config Option: $1 - $value"
+  echo "$value"
+else
+  echo "Error: Parameter '$param' not found in $config_file"
+  exit 1
+fi
+
+# Used to cache this value, to prevent repeated query of config.txt within helper utilities
+if [ "$1" = "THEME" ]; then
+  echo "$value" > /tmp/theme
+fi

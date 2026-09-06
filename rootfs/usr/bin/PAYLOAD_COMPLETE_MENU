@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# This script is used by execute_payload + screen_service upon payload completion
+# to allow the user to view the payload log w/ scrollback, run the payload again,
+# or return to arming mode
+
+# not intended for use within payloads
+
+source /usr/lib/shark_helpers
+source /usr/lib/list_tools
+
+restart_payload_dialog() {
+  resp=$(CONFIRMATION_DIALOG "Restart Payload?")
+  if [[ "$resp" == "Confirm" ]]; then
+    touch /tmp/restart_payload
+    exit 0
+  fi
+}
+
+back_to_logs() {
+  echo "Back"
+  exit 0
+}
+
+return_to_arming_mode() {
+  resp=$(CONFIRMATION_DIALOG "Enter ARMING MODE?")
+  if [[ "$resp" == "Confirm" ]]; then
+    exit 0
+  fi
+}
+
+ADD_MENU_ITEM " Return to log" "back_to_logs"
+ADD_MENU_ITEM " ARMING MODE" "return_to_arming_mode"
+ADD_MENU_ITEM " Run Again" "restart_payload_dialog"
+START_MENU
+

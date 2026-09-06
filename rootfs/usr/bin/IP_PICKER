@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# This script is used to prompt user to enter an IP address
+
+# The script will automatically pad, prompt, strip, validate then
+# prompt the user for confirmation before echoing the final value back to the caller
+
+# Script includes automatic retry logic
+# Script will echo ← Back if user exits early
+
+# Usage
+# IP_PICKER "IP" "192.168.1.1"
+
+
+source /usr/lib/shark_helpers
+disable_cursor_blink
+
+IP="$(pad_ip "$2")"
+while true; do
+    ip="$(NUMBER_PICKER "$1" "$IP")"
+    if [ "$ip" = "← Back" ]; then
+        echo "← Back"
+        exit 1
+    fi
+    ip="$(validate_and_strip_ip "$ip")"
+    if [ -z "$ip" ]; then
+        ALERT "Invalid IP" 3
+        # Retry IP
+        continue
+    fi
+    conf="$(CONFIRMATION_DIALOG "$ip")"
+    if [ "$conf" != "Confirm" ]; then
+        # Retry IP
+        continue
+    fi
+    break
+done
+
+echo $ip
+

@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# Sourcing this to gain access to text centering helpers
+source /usr/lib/shark_text_helpers
+
+# Alert usage:
+# ALERT "Title" (optional timeout) (optional flash flag) (optional raw input flag)
+# optional arguments 2 and 3 require the inclusion of previous arguments, see examples below
+
+# Put something in the payload log
+SCREEN_WRITE "Alert Demo!"
+
+########################################################
+# Flashing Alert
+################################################################################
+
+SCREEN_WRITE "Flashing"
+
+sleep 1 # give SCREEN_WRITE a chance to render before drawing alert over it
+
+# This will display a flashing alert titled "Flashing!" for 2 seconds unless user presses button to exit early
+# the title will automatically be centered horizontally and vertically
+ALERT "Flashing!" 3
+
+SCREEN_WRITE "Done"
+
+sleep 1 # give SCREEN_WRITE a chance to render before drawing alert over it
+
+########################################################
+# Solid Alert
+################################################################################
+
+SCREEN_WRITE "Solid"
+
+sleep 1 # give SCREEN_WRITE a chance to render before drawing alert over it
+
+# This will display a solid alert titled "Solid" for 1 second unless user presses button to exit early
+# the title will automatically be centered horizontally and vertically
+ALERT "Solid" 3 false
+
+SCREEN_WRITE "Done"
+
+sleep 1
+
+########################################################
+# Raw Formatting Alert (Raw)
+################################################################################
+
+SCREEN_WRITE "Raw Title"
+
+sleep 1 # give SCREEN_WRITE a chance to render before drawing alert over it
+
+# This will display a solid alert titled "Raw Format!" for 1 second unless user presses button to exit early
+# the title will not be automatically formatted by the ALERT command, allowing the caller to format as desired
+ALERT "Raw Format!" 3 false true
+
+SCREEN_WRITE "Done"
+
+sleep 1
+
+########################################################
+# Raw Formatting Alert (Formatted)
+################################################################################
+
+SCREEN_WRITE "Formatting"
+
+sleep 1 # give SCREEN_WRITE a chance to render before drawing alert over it
+
+# This will display a solid alert titled "Raw Format!" for 1 second unless user presses button to exit early
+ALERT "$(center_text "Manual")\n\n$(center_text "Format!")" 3 false true
+SCREEN_WRITE "Done"
+
+sleep 1
+
+
+########################################################
+# No Timeout Solid Alert
+################################################################################
+
+SCREEN_WRITE "No timeout!"
+
+sleep 1 # give SCREEN_WRITE a chance to render before drawing alert over it
+
+# This will display a solid alert titled "Press button to exit!" for 1 second unless user presses button to exit early
+# the title will not be automatically formatted by the ALERT command, allowing the caller to format as desired
+ALERT "Press button to exit!" -1 false
+
+SCREEN_WRITE "Done"
+SCREEN_WRITE "Demo Complete"
+
+sleep 1
+

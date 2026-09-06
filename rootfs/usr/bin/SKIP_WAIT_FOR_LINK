@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# This script can be used by payloads to skip WAIT_FOR_LINK and WAIT_FOR_NO_LINK 
+# commands if configured to be automatically called before payload execution via config.txt
+
+logger -t SharkWaitForLink "SKIP Waiting for Ethernet link..."
+
+touch /tmp/skip_wait_for_link

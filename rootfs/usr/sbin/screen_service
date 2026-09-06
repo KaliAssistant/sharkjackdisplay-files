@@ -1,0 +1,187 @@
+#!/bin/bash
+
+# This script handles payload log rendering and scrollback
+# DO NOT CALL THIS SCRIPT. It is automatically sourced and run via execute_payload
+
+source /usr/lib/shark_helpers
+disable_cursor_blink
+
+SCREEN_PIPE="/tmp/screen"
+SCROLL_PIPE="/tmp/button_pipe"
+
+if [[ ! -p $SCREEN_PIPE ]]; then
+  mkfifo $SCREEN_PIPE
+fi
+if [[ ! -p $SCROLL_PIPE ]]; then
+  mkfifo $SCROLL_PIPE
+fi
+
+MAX_LINES=256
+DISPLAY_LINES=8
+data=()
+scroll_offset=0
+
+screen_cleanup() {
+    kill -TERM $button_listener_pid 2&>/dev/null
+    killall screen_service_button_listener 2&>/dev/null
+    if [ -f "/tmp/screen_service_button_listener" ]; then
+      rm /tmp/screen_service_button_listener 2&>/dev/null
+    fi
+    rm -f "$SCREEN_PIPE" "$SCROLL_PIPE"
+    exit 0
+}
+
+trap screen_cleanup SIGINT SIGTERM
+trap screen_cleanup EXIT
+
+screen_render_lines() {
+  if [ ! -f "/tmp/pause_rendering" ]; then
+    local end=$(( ${#data[@]} - scroll_offset ))
+    (( end > ${#data[@]} )) && end=${#data[@]}
+
+    local start=$(( end - DISPLAY_LINES ))
+    (( start < 0 )) && start=0
+
+    clear_screen
+
+    local padding=$(( DISPLAY_LINES - (end - start) ))
+    for (( i = 0; i < padding; i++ )); do
+        screen_write "\n"
+    done
+
+    for (( i = start; i < end; i++ )); do
+      local line="${data[i]}"
+      local arrow=false
+      if (( i == start && scroll_offset + DISPLAY_LINES < ${#data[@]} )); then
+        line="↑$line"
+        arrow=true
+      fi
+      if (( i == end - 1 && scroll_offset > 0 )); then
+        line="↓$line"
+        arrow=true
+      fi
+      if [[ $arrow == false ]]; then
+        line=" $line"
+      fi
+      if (( i == end - 1 )); then
+        screen_write "$line"
+      else
+        screen_write "$line\n"
+      fi
+    done
+  fi
+}
+
+screen_handle_scroll() {
+  case "$1" in
+    "up")
+      if (( scroll_offset + 1 < ${#data[@]} )); then
+          (( scroll_offset += 1 ))
+      fi
+      ;;
+    "down")
+      if (( scroll_offset > 0 )); then
+          (( scroll_offset -= 1 ))
+          (( scroll_offset < 0 )) && scroll_offset=0
+      fi
+      ;;
+  esac
+  screen_render_lines
+}
+
+kill_tree() {
+  local _pid="$1"
+
+  for _child in $(pgrep -P "$_pid"); do
+    kill_tree "$_child"
+  done
+
+  kill -9 "$_pid" 2>/dev/null
+}
+
+screen_handle_enter() {
+  if [ -e "/tmp/payload_complete" ]; then
+    resp="$(PAYLOAD_COMPLETE_MENU)"
+    if [ "$resp" = "Back" ]; then
+      screen_render_lines
+    else
+      rm /tmp/payload_complete
+      screen_cleanup
+      exit 0
+    fi
+  else
+    echo "screen_service" >> /tmp/pause_rendering
+    if [ ! -f "/tmp/no_payload_cancel_menu" ]; then # if user hasnt force silenced this
+      resp="$(CONFIRMATION_DIALOG "STOP Payload?" "STOP")"
+      rm /tmp/pause_rendering
+      if [ "$resp" = "STOP" ]; then
+        data+=("[!] CANCELLED") # add to log without forcing draw (that inturrupts "Payload Complete" ALERT)
+        rm /tmp/suppress_screen_service_scroll # if we killed something that suppressed rendering, make sure we reenable now
+        TOP_PID="$(cat /tmp/payload_pid)"
+        kill_tree "$TOP_PID"
+      else
+        screen_render_lines
+      fi
+    fi
+  fi
+}
+
+background_button_listener() {
+  while true; do
+    button_input=$(/usr/sbin/screen_service_button_listener 2>/dev/null)
+    # even though there is a focus system for button inputs, many tools like 
+    # TEXT_PICKER rely on fast input from user, meaning that input can "slip through" to here
+    # since there is work being done between button listeners
+    # this simply ensures it cant fall through
+    if [ ! -f '/tmp/suppress_screen_service_scroll' ]; then
+      echo "$button_input" > "$SCROLL_PIPE"
+      sleep 0.1
+    else
+      sleep 0.2
+    fi
+  done
+}
+
+run_screen_service() {
+  exec 3<>"$SCREEN_PIPE"
+  exec 4<>"$SCROLL_PIPE"
+
+  background_button_listener &
+  button_listener_pid=$!
+
+  while true; do
+    if read -r -t 0.1 line <&3; then
+      # LOG only indicator
+      if [[ $line == $'\x01'* ]]; then
+        if [[ $line == $'\x01REDRAW' ]];then
+          screen_render_lines
+        else
+          data+=("${line:1}")  # Strip the control character
+          scroll_offset=0
+        fi
+      else
+        data+=("$line")
+        scroll_offset=0
+        screen_render_lines
+      fi
+    else
+      if read -r -t 0.1 button_event <&4; then
+        case "$button_event" in
+          "switch-left")
+            screen_handle_scroll "down"
+            ;;
+          "switch-right")
+            screen_handle_scroll "up"
+            ;;
+          "switch-middle")
+            screen_handle_enter
+            ;;
+          *)
+            screen_render_lines
+            ;;
+        esac
+      fi
+    fi
+  done
+}
+

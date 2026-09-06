@@ -1,0 +1,15 @@
+Package: openssh-keygen
+Version: 9.8_p1-2
+Depends: libc, libopenssl3, zlib
+Alternatives: 200:/usr/bin/ssh-keygen:/usr/libexec/ssh-keygen-openssh
+Source: feeds/packages/net/openssh
+SourceName: openssh-keygen
+License: BSD ISC
+LicenseFiles: LICENCE
+Section: net
+SourceDateEpoch: 1720125352
+CPE-ID: cpe:/a:openssh:openssh
+Maintainer: Peter Wagner <tripolar@gmx.at>
+Architecture: mipsel_24kc
+Installed-Size: 194495
+Description:  OpenSSH keygen.

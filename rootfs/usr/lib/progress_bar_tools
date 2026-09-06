@@ -1,0 +1,241 @@
+#!/bin/bash
+
+# This is a collection of functions intended to be sourced and called
+# to generate a progress bar to be used within a payload
+
+# DuckyScript functions intended for use are in ALL CAPS
+
+# Find more compelte example code within the examples directory of the payload repo
+
+# Usage Example:
+#
+# CREATE_PROGRESS_BAR "test"
+# for i in {1..100}; do
+#   INCREMENT_PROGRESS 10
+#   sleep 0.1
+# done
+#
+# # Indeterminate spinner below progress bar:
+# START_PROGRESS_SPINNER
+# sleep 5
+# STOP_PROGRESS_SPINNER
+
+source /usr/lib/shark_helpers
+
+_progress_title=""
+_progress=0
+_progress_total=100
+_increment_calls=0
+_show_progress_spinner=false
+_progress_spinner_position=0
+_progress_spinner_width=16
+_progress_spinner_pid=0
+_progress_timer_pid=0
+_progress_start_time=$(date +%s)
+
+_progress_state_file="/tmp/progress_bar_state_$$"
+
+render_progress_bar() {
+  if [ ! -f "/tmp/pause_rendering" ]; then
+    local bar_width=16
+    local completed_chars incomplete_chars half_char
+
+    local total_blocks=0
+    if [[ $_progress -eq 0 ]]; then
+      total_blocks=0
+    else
+      total_blocks=$(( (_progress * bar_width * 2) / _progress_total ))
+    fi
+
+    completed_chars=$(( total_blocks / 2 ))
+    half_char=$(( total_blocks % 2 ))
+    incomplete_chars=$(( bar_width - completed_chars - half_char ))
+
+    local bar=""
+    bar+=$(printf '\033[7m%*s\033[0m' "$completed_chars" | tr ' ' ' ')
+    if (( half_char == 1 )); then
+      bar+="\033[7m▒\033[0m"  # Half progress block
+    fi
+    bar+=$(printf '%*s' "$incomplete_chars" | tr ' ' '_')
+
+    local current_time
+    current_time=$(date +%s)
+    local elapsed_time=$((current_time - _progress_start_time))
+
+    local hours=$((elapsed_time / 3600))
+    local minutes=$(( (elapsed_time % 3600) / 60 ))
+    local seconds=$((elapsed_time % 60))
+
+    local formatted_time
+    printf -v formatted_time "    %02d:%02d:%02d" "$hours" "$minutes" "$seconds"
+
+    local out=""
+    out+="\n$_progress_title\n\n\n"
+    out+="$bar\n"
+
+    if [[ $_progress -eq 100 ]]; then
+      out+="    Complete\n"
+    else
+      if [[ $_show_progress_spinner == "true" ]]; then
+        local spinner
+        spinner="$(printf '%*s' $_progress_spinner_width | tr ' ' ' ')"
+        spinner="${spinner:0:$_progress_spinner_position}~${spinner:$_progress_spinner_position+1}"
+        out+="$spinner"
+      fi
+    fi
+
+    # Display elapsed time
+    out+="\n$formatted_time\n"
+
+    clear_screen
+    screen_write "$out"
+  fi
+}
+
+INCREMENT_PROGRESS() {
+  local increment=$1
+  _progress=$(( _progress + increment ))
+  _increment_calls=$(( _increment_calls + 1 ))
+
+  if (( _progress > _progress_total )); then
+    _progress=$_progress_total
+  fi
+  if (( _progress < 0 )); then
+    _progress=0
+  fi
+
+  _progress_spinner_position=$(( _increment_calls % _progress_spinner_width ))
+
+  render_progress_bar
+
+  echo "$_progress" > "$_progress_state_file"
+
+  if [[ $_progress -eq 100 ]]; then
+    STOP_PROGRESS
+  fi
+}
+
+SET_PROGRESS() {
+  local increment=$1
+  _progress=$(( increment ))
+  _increment_calls=$(( _increment_calls + 1 ))
+
+  if (( _progress > _progress_total )); then
+    _progress=$_progress_total
+  fi
+  if (( _progress < 0 )); then
+    _progress=0
+  fi
+
+  _progress_spinner_position=$(( _increment_calls % _progress_spinner_width ))
+  render_progress_bar
+
+  echo "$_progress" > "$_progress_state_file"
+
+  if [[ $_progress -eq 100 ]]; then
+    STOP_PROGRESS
+  fi
+}
+
+start_progress_timer() {
+  if [[ $_show_progress_spinner == "true" ]]; then
+    return
+  fi
+
+  if (( _progress_timer_pid > 0 )) && kill -0 $_progress_timer_pid 2>/dev/null; then
+    return
+  fi
+
+  (
+    while true; do
+      if [[ -f "$_progress_state_file" ]]; then
+        _progress=$(cat "$_progress_state_file" 2>/dev/null || echo 0)
+      fi
+      render_progress_bar
+
+      if [[ $_progress -eq 100 ]]; then
+        break
+      fi
+      sleep 1
+    done
+  ) &
+  _progress_timer_pid=$!
+}
+
+stop_progress_timer() {
+  if (( _progress_timer_pid > 0 )); then
+    kill $_progress_timer_pid 2>/dev/null
+    wait $_progress_timer_pid 2>/dev/null
+    _progress_timer_pid=0
+  fi
+}
+
+START_PROGRESS_SPINNER() {
+  _show_progress_spinner=true
+  trap STOP_PROGRESS_SPINNER EXIT
+
+  if (( _progress_spinner_pid > 0 )) && kill -0 $_progress_spinner_pid 2>/dev/null; then
+    return
+  fi
+
+  stop_progress_timer
+
+  (
+    while true; do
+      if [[ -f "$_progress_state_file" ]]; then
+        _progress=$(cat "$_progress_state_file" 2>/dev/null || echo 0)
+      fi
+
+      increment_progress 0
+
+      if [[ $_progress -eq 100 ]]; then
+        break
+      fi
+      sleep 0.1
+    done
+  ) &
+  _progress_spinner_pid=$!
+}
+
+STOP_PROGRESS_SPINNER() {
+  if (( _progress_spinner_pid > 0 )); then
+    kill $_progress_spinner_pid 2>/dev/null
+    wait $_progress_spinner_pid 2>/dev/null
+    _progress_spinner_pid=0
+  fi
+  _show_progress_spinner=false
+}
+
+STOP_PROGRESS() {
+  rm /tmp/suppress_screen_service_scroll
+  STOP_PROGRESS_SPINNER
+  stop_progress_timer
+
+  rm -f "$_progress_state_file" 2>/dev/null
+
+  render_progress_bar
+}
+
+CREATE_PROGRESS_BAR() {
+  echo "progress_bar_tools" >> /tmp/suppress_screen_service_scroll
+  _progress_start_time=$(date +%s)
+  local title="$1"
+  local bar_width=16
+  local title_length=${#title}
+  local spaces=$(( (bar_width - title_length) / 2 ))
+  local extra_space=$(( (bar_width - title_length) % 2 ))
+
+  _progress_title="$(printf '%*s%s%*s' "$spaces" '' "$title" "$((spaces + extra_space))" '')"
+
+  _progress=0
+  _increment_calls=0
+  _progress_spinner_position=0
+  _show_progress_spinner=false
+  echo "0" > "$_progress_state_file"
+
+  render_progress_bar
+  logger -t SharkProgressBar "Create Progress bar: $title"
+
+  start_progress_timer
+}
+

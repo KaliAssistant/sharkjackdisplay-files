@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Not intended for usage within payloads
+
+# This script is used by the WAIT_FOR IP/LINK scripts allowing the user to exit them
+
+source /usr/lib/shark_helpers
+source /usr/lib/list_tools
+
+back_to_wait() {
+  echo "Back"
+  exit 0
+}
+abort() {
+ echo "Cancel"
+ exit 0
+}
+
+toggle_interface() {
+  ALERT "Toggling Interface" 2 false
+  ifconfig eth0 down
+  sleep 1
+  ifconfig eth0 up
+  ALERT "Complete" 1 false
+}
+
+ADD_MENU_ITEM "Back" "back_to_wait"
+ADD_MENU_ITEM "Toggle Interface" "toggle_interface"
+ADD_MENU_ITEM "Stop Waiting" "abort"
+START_MENU

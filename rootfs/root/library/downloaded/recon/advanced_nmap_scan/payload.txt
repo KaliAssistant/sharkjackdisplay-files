@@ -1,0 +1,564 @@
+#!/bin/bash
+# Title: Advanced nmap Scan
+# Author: Hak5Darren
+# Props: Korben
+# Description: Configurable nmap scanner with profiles and logging.
+
+setup_payload(){
+  PROFILE="default.cfg"
+  LOOT_DIR=/root/loot/nmap
+  SCAN_NOW=0
+  LED SETUP
+  mkdir -p $LOOT_DIR
+}
+
+get_config_options() {
+  NMAP_SCAN="$(GET_PAYLOAD_CONFIG_OPTION NMAP_SCAN "-sL" $PROFILE)"
+  HOST_TIMEOUT="$(GET_PAYLOAD_CONFIG_OPTION HOST_TIMEOUT "30s" $PROFILE)"
+  MAX_RETRIES="$(GET_PAYLOAD_CONFIG_OPTION MAX_RETRIES "2" $PROFILE)"
+  SCAN_NETMODE="$(GET_PAYLOAD_CONFIG_OPTION SCAN_NETMODE "DHCP_CLIENT" $PROFILE)"
+  SCAN_TARGET="$(GET_PAYLOAD_CONFIG_OPTION SCAN_TARGET "SUBNET" $PROFILE)"
+}
+
+initialize_menu() {
+  ADD_MENU_ITEM "Start Scan" "execute_scan"
+  ADD_MENU_ITEM "Options" "menu_options"
+  ADD_MENU_ITEM "Profiles" "menu_profiles"
+  ADD_MENU_ITEM "Quit" "EXIT_MENU"
+
+  ADD_SUBMENU_ITEM "menu_profiles" "Load Profile" "render_menu_profile"
+  ADD_SUBMENU_ITEM "menu_profiles" "Save Profile" "menu_save_profile"
+  ADD_SUBMENU_ITEM "menu_profiles" "← Back"
+
+  ADD_SUBMENU_ITEM "menu_options" "Change Options" "menu_settings"
+  ADD_SUBMENU_ITEM "menu_options" "Show Options" "show_settings"
+  ADD_SUBMENU_ITEM "menu_options" "← Back"
+
+  ADD_SUBMENU_ITEM "menu_settings" "Scan Type" "set_scan_type"
+  ADD_SUBMENU_ITEM "menu_settings" "Target" "set_target"
+  ADD_SUBMENU_ITEM "menu_settings" "Advanced" "menu_settings_advanced"
+  ADD_SUBMENU_ITEM "menu_settings" "← Back"
+
+  ADD_SUBMENU_ITEM "menu_settings_advanced" "NETMODE" "set_netmode"
+  ADD_SUBMENU_ITEM "menu_settings_advanced" "Max Retries" "set_max_retries"
+  ADD_SUBMENU_ITEM "menu_settings_advanced" "Host Timeout" "set_host_timeout"
+  ADD_SUBMENU_ITEM "menu_settings_advanced" "← Back"
+
+  ADD_SUBMENU_ITEM "menu_save_profile" "Save Default" "save_as_default_profile"
+  ADD_SUBMENU_ITEM "menu_save_profile" "Save As..." "save_as_new_profile"
+  ADD_SUBMENU_ITEM "menu_save_profile" "← Back"
+}
+
+show_settings() {
+  # Display basic options in a user friendly format
+  case "$NMAP_SCAN" in
+    "-sL"*) OPT_SCAN="Passive scan of " ;;
+    "-sn"*) OPT_SCAN="Ping scan of " ;;
+    "-sV"*) OPT_SCAN="Service scan of " ;;
+    "-p"*|"-sS"*) OPT_SCAN="Port scan of " ;;
+  esac
+  if [ "$SCAN_TARGET" = "SUBNET" ]; then
+    OPT_TARGET="entire subnet."
+  else
+    OPT_TARGET=$SCAN_TARGET
+  fi
+  RESP="$(OPTION_DIALOG "$OPT_SCAN $OPT_TARGET" "Back" "Advanced")"
+  case "$RESP" in
+    "Back") ;;
+    "Advanced")
+      # Display full settings
+      ALERT "NETMODE:\n$SCAN_NETMODE\nTarget:\n$SCAN_TARGET\n\nScan: $NMAP_SCAN\nRetries: $MAX_RETRIES\nTimeout: $HOST_TIMEOUT" -1 false true
+    ;;
+  esac
+}
+
+save_as_new_profile() {
+  # Save current configuration as user specified profile cfg file
+  RESP="$(TEXT_PICKER "Profile Name" "profile01" "abcdefghijklmnopqrstuvwxyz_0123456789")"
+  if [ "$RESP" = "← Back" ]; then
+    ALERT "Cancelled" 2 false
+    return
+  fi
+  PROFILE="${RESP}.cfg"
+  SET_PAYLOAD_CONFIG_OPTION NMAP_SCAN "$NMAP_SCAN" $PROFILE
+  SET_PAYLOAD_CONFIG_OPTION HOST_TIMEOUT "$HOST_TIMEOUT" $PROFILE
+  SET_PAYLOAD_CONFIG_OPTION MAX_RETRIES "$MAX_RETRIES" $PROFILE
+  SET_PAYLOAD_CONFIG_OPTION SCAN_NETMODE "$SCAN_NETMODE" $PROFILE
+  SET_PAYLOAD_CONFIG_OPTION SCAN_TARGET "$SCAN_TARGET" $PROFILE
+  ALERT "Profile: $PROFILE Saved" 3 false
+  get_config_options
+}
+
+save_as_default_profile() {
+  # Save current configuration as default profile ('default.cfg')
+  PROFILE="default.cfg"
+  SET_PAYLOAD_CONFIG_OPTION NMAP_SCAN "$NMAP_SCAN" $PROFILE
+  SET_PAYLOAD_CONFIG_OPTION HOST_TIMEOUT "$HOST_TIMEOUT" $PROFILE
+  SET_PAYLOAD_CONFIG_OPTION MAX_RETRIES "$MAX_RETRIES" $PROFILE
+  SET_PAYLOAD_CONFIG_OPTION SCAN_NETMODE "$SCAN_NETMODE" $PROFILE
+  SET_PAYLOAD_CONFIG_OPTION SCAN_TARGET "$SCAN_TARGET" $PROFILE
+  ALERT "Default Profile Saved" 3 false
+  get_config_options
+}
+
+render_menu_profile() {
+  RESP="$(PAYLOAD_CONFIG_MENU)"
+  case "$RESP" in
+    "← Back")
+      ALERT "Canceled" 1 false
+    ;;
+    *)
+      PROFILE="$RESP"
+      get_config_options
+      show_settings
+    ;;
+  esac
+}
+
+set_netmode() {
+  RESP="$(LIST_PICKER "Scan NETMODE" "DHCP_CLIENT STATIC" "DHCP_CLIENT")"
+  case "$RESP" in
+    "DHCP_CLIENT")
+      SCAN_NETMODE="DHCP_CLIENT"
+      ALERT "Network Mode Updated" 1 false
+    ;;
+    "STATIC")
+      RESP="$(CREATE_NETMODE_ARGUMENTS "192.168.1.100" "255.255.255.0" "192.168.1.1")"
+      case "$RESP" in
+        "← Back")
+          ALERT "NETMODE not set" 1 false
+        ;;
+        *) 
+          SCAN_NETMODE="STATIC"
+          STATIC_ARGUMENTS="$RESP"
+          ALERT "Network Mode Updated" 1 false
+        ;;
+      esac
+    ;;
+    "← Back")
+      ALERT "NETMODE not set" 1 false
+    ;;
+  esac
+}
+
+set_target() {
+  # Prompt for which to target, the entire subnet or a specific IP address
+  OLD_SCAN_TARGET=$SCAN_TARGET
+  RESP="$(OPTION_DIALOG "Target" "Subnet" "IP_Addr")"
+  case "$RESP" in
+    "Subnet")
+      SCAN_TARGET="SUBNET"
+      ALERT "Target Set" 1 false
+    ;;
+    "IP_Addr")
+      RESP="$(IP_PICKER "IP Address" "192.168.1.100")"
+      case "$RESP" in
+        "← Back")
+          ALERT "Host not set" 1 false
+        ;;
+        *)
+          SCAN_TARGET="$RESP"
+        ;;
+      esac
+    ;;
+  esac
+  # If the target changes, prompt for the scan type
+  if [ "$OLD_SCAN_TARGET" != "$SCAN_TARGET" ]; then
+    set_scan_type
+  fi
+}
+
+set_scan_type() {
+case "$SCAN_TARGET" in
+  "SUBNET"|*/*)
+    # If the target is the entire subnet, prompt for a passive or ping scan type
+    RESP="$(OPTION_DIALOG "Subnet Scan" "Passive" "Ping")"
+    case "$RESP" in
+      "Passive") NMAP_SCAN="-sL" ;;
+      "Ping") NMAP_SCAN="-sn" ;;
+      *) LOG "Subnet Scan Error" && exit ;;
+    esac
+  ;;
+  [0-9]*.[0-9]*.[0-9]*.[0-9]*)
+    # If the target is a specific IP address, prompt for a port or service scan type
+    RESP="$(OPTION_DIALOG "IP Scan" "Port" "Service")"
+    case "$RESP" in
+      "Port") 
+        set_port_scan 
+      ;;
+      "Service") 
+        set_service_scan
+      ;;
+    esac
+  ;;
+esac
+}
+
+set_service_scan() {
+  # Get service scan options
+  RESP="$(OPTION_DIALOG "Service/Version Scan Speed" "Fast" "Slow")"
+  case "RESP" in
+    "Fast") NMAP_SCAN="-sV -version-light" ;;
+    "Slow") NMAP_SCAN="-sV" ;;
+  esac
+  # Execute the scan if it is being launched from the list or ping scan results
+  if [ "$SCAN_NOW" = "1" ]; then
+    execute_scan
+  fi
+}
+
+set_port_scan() {
+  RESP="$(LIST_PICKER "Ports to Scan" "Fast-100 Top-1000 Individual Range All" "Fast-100")"
+  case "$RESP" in
+    "Fast-100") NMAP_SCAN="-sS -F" ;;
+    "Top-1000") NMAP_SCAN="-sS -top-ports 1000" ;;
+    "Individual")
+      # Get the Individual port number
+      RESP="$(SINGLE_NUMBER_PICKER "Port" "1")"
+      case "$RESP" in
+        # Cancel if back is chosen
+        "← Back") ALERT "Cancelled" 1 false; return ;;
+        *)
+          # Check that the individual port number is not too low or too high
+          if [ "$RESP" -ge "65536" ]; then
+            ALERT "Port too high. Port not set." 3; return
+          fi
+          if [ "$RESP" = "0" ]; then
+            ALERT "Port too low. Port not set." 3; return
+          fi
+          # Set the individual port scan option
+          NMAP_SCAN="-p $RESP"
+        ;;
+      esac
+    ;;
+    "Range")
+      # Get the lower range
+      RANGE_LOW="$(SINGLE_NUMBER_PICKER "Range Low" "1")"
+      case "$RANGE_LOW" in
+        # Cancel if back is chosen
+        "← Back") ALERT "Cancelled" 1 false; return ;;
+        *)
+          # Check that the lower range port is not too low or too high
+          if [ "$RANGE_LOW" -ge "65536" ]; then
+            ALERT "Port too high. Port not set." 3; return
+          fi
+          if [ "$RANGE_LOW" -le "0" ]; then
+            ALERT "Port too low. Port not set." 3; return 
+          fi
+        ;;
+      esac
+      # Get the higher range
+      RANGE_HIGH="$(SINGLE_NUMBER_PICKER "Range High" "1")"
+      case "$RANGE_HIGH" in
+        # Cancel if back is chosen
+        "← Back") ALERT "Cancelled" 1 false; return ;;
+        *)
+          # Check that the higher range port is not too low or too high
+          if [ "$RANGE_HIGH" -ge "65536" ]; then
+            ALERT "Port too high. Port not set." 3; return  
+          fi
+          if [ "$RANGE_HIGH" = "0" ]; then 
+            ALERT "Port too low. Port not set." 3; return
+          fi
+        ;;
+      esac
+      # Set the port range scan option
+      NMAP_SCAN="-p $RANGE_LOW-$RANGE_HIGH"
+    ;;
+    "All")
+      NMAP_SCAN="-sS -p-"
+    ;;
+    # Cancel if back is chosen
+    "← Back") set_port_scan ;;
+    *) LOG "Ports to Scan Error" && exit ;;
+  esac
+  # Execute the scan if it is being launched from the list or ping scan results
+  if [ "$SCAN_NOW" = "1" ]; then
+    execute_scan
+  fi
+}
+
+set_max_retries() {
+  # Get the max number of retries
+  RESP="$(SINGLE_NUMBER_PICKER "Max Retries" "$MAX_RETRIES")"
+  case "$RESP" in
+    "← Back") ALERT "Max Retries not set" 2 ;;
+    *) MAX_RETRIES="$RESP" ;;
+  esac
+}
+
+set_host_timeout() {
+  # Set the host timeout option
+  RESP="$(SINGLE_NUMBER_PICKER "Host Timeout" "$HOST_TIMEOUT")"
+  case "$RESP" in
+    "← Back") ALERT "Host Timeout not set" 2 false ;;
+    *)
+      HOST_TIMEOUT="$RESP"
+      HOST_TIMEOUT="${HOST_TIMEOUT}s"
+    ;;
+  esac
+}
+
+dhcp_client() {
+  # Set the NETMODE to DHCP_CLIENT, wait for an IP address and display it.
+  NETMODE DHCP_CLIENT
+  WAIT_FOR_IP
+  LOG "Got IP:"
+  IPADDR=$(ip -o -4 addr show eth0 | awk '{print $4}' | cut -d/ -f1)
+  LOG "$IPADDR"
+}
+
+static_ip() {
+  # Set the NETMODE to STATIC using the arguments set in the configuration/profile
+  NETMODE STATIC "$STATIC_ARGUMENTS"
+}
+
+show_scan_options(){
+  # Display scan to be executed
+  case "$NMAP_SCAN" in
+    "-sL"*) OPT_SCAN="Passive" ;;
+    "-sn"*) OPT_SCAN="Ping" ;;
+    "-sV"*) OPT_SCAN="Service" ;;
+    "-p"*|"-sS"*) OPT_SCAN="Port" ;;
+  esac
+  LOG "Scan: $OPT_SCAN"
+  if [ "$SCAN_TARGET" = "SUBNET" ]; then
+    OPT_TARGET="Subnet"
+    LOG "Target: Subnet"
+  else
+    OPT_TARGET=$SCAN_TARGET
+    LOG "Target IP:"
+    LOG "$OPT_TARGET"
+  fi
+  ALERT "Starting $OPT_SCAN scan of $OPT_TARGET" 2 false
+}
+
+execute_scan() {
+  LED ATTACK
+  SCAN_NOW=0
+
+  # Set loot file number
+  COUNT=$(($(ls -l $LOOT_DIR/*.txt | wc -l)+1))
+  LOOT_FILE="$LOOT_DIR/scan-$COUNT.txt"
+
+  # Start the payload log
+  LOG " "
+  LOG "▀▄▀▄▀▄▀▄▀▄▀▄▀▄"
+  LOG " "
+  LOG "Start scan $COUNT"
+
+  # Display scan to be executed
+  show_scan_options
+
+  # Wait for Ethernet link, then set the NETMODE as configured
+  WAIT_FOR_LINK
+  case "$SCAN_NETMODE" in
+    "DHCP_CLIENT") dhcp_client ;;
+    "STATIC") static_ip ;;
+  esac
+
+  # Set the subnet if it is the target
+  if [ "$SCAN_TARGET" = "SUBNET" ]; then
+    SUBNET=$(ip addr | grep -i eth0 | grep -i inet | grep -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}[\/]{1}[0-9]{1,2}")
+    SCAN_TARGET="$SUBNET"
+  fi
+
+  # Write nmap command to start of loot file
+  NMAP_COMMAND="$NMAP_SCAN $SCAN_TARGET --max-retries $MAX_RETRIES --host-timeout $HOST_TIMEOUT --stats-every 1s"
+  echo "nmap $NMAP_COMMAND" > $LOOT_FILE
+
+  # Progress bar while scanning
+  CREATE_PROGRESS_BAR "Scan $COUNT"
+  nmap $NMAP_COMMAND >> $LOOT_FILE &
+  pidof_nmap=$!
+  COMPLETE=0
+  while true; do
+    sleep 0.5
+    # Get the nmap estimated time to completion from the log file
+    COMPLETE="$(cat "$LOOT_FILE" | grep "remaining" | awk '{print $6}' | tail -n1 | cut -d'.' -f1)"
+    # If nmap is no longer running, set the progress bar to 100 and break the loop
+    if [ -z "$(ps | grep $pidof_nmap | grep -v grep)" ]; then
+      SET_PROGRESS 100
+      break
+    fi
+    # Set the progress bar completion based on the estimate from nmap
+    SET_PROGRESS $COMPLETE
+  done
+  show_initial_results
+}
+
+show_initial_results() {
+  LED FINISH
+  case "$NMAP_SCAN" in
+    # List
+    "-sL")
+      HOSTS_FOUND="$(cat "$LOOT_FILE" | grep "Nmap scan report for" | grep "(" | wc -l)"
+      LOG "$HOSTS_FOUND hosts seen"
+      ALERT "Scan $COUNT Done. \nHost count $HOSTS_FOUND" 2
+      ALERT "Scan $COUNT Done. \nHost count $HOSTS_FOUND \n← Continue" -1 false
+      RESP="$(OPTION_DIALOG "View Results?" " Yes " " No ")"
+      if [ "$RESP" = " Yes " ]; then
+        show_results_list
+      fi
+    ;;
+    # Ping
+    "-sn")
+      HOSTS_FOUND="$(cat "$LOOT_FILE" | grep "Nmap done" | awk -F '[()]' '{print $2}')"
+      LOG "$HOSTS_FOUND hosts seen"
+      ALERT "Scan $COUNT Done. \n$HOSTS_FOUND" 2
+      ALERT "Scan $COUNT Done. \n$HOSTS_FOUND \n← Continue" -1 false
+      RESP="$(OPTION_DIALOG "View Results?" " Yes " " No ")"
+      if [ "$RESP" = " Yes " ]; then
+        show_results_ping
+      fi
+    ;;
+    # Port
+    "-sS"* | "-p"*)
+      case "$SCAN_TARGET" in
+        */*)
+          HOSTS_SCANNED="$(cat "$LOOT_FILE" | grep "Nmap done" | awk -F '[()]' '{print $2}'  | awk '{print $1}')"
+          LOG "$HOSTS_SCANNED Scanned"
+          ALERT "Scan $COUNT Done. \n$HOSTS_SCANNED Scanned" 2
+          ALERT "Scan $COUNT Done. \n$HOSTS_SCANNED Scanned \n← Continue" -1 false
+        ;;
+        *)
+          PORTS_FOUND="$(cat "$LOOT_FILE" | grep "/" | grep -v -e "Not shown" -e "Starting Nmap" | wc -l)"
+          LOG "$PORTS_FOUND ports seen"
+          ALERT "Scan $COUNT Done. \nPorts seen $PORTS_FOUND" 2
+          ALERT "Scan $COUNT Done. \nPorts seen $PORTS_FOUND \n← Continue" -1 false
+          RESP="$(OPTION_DIALOG "View Results?" " Yes " " No ")"
+          if [ "$RESP" = " Yes " ]; then
+            show_results_ports
+          fi
+        ;;
+      esac
+    ;;
+    # Service
+    "-sV"*) 
+      case "$SCAN_TARGET" in
+        */*)
+          HOSTS_SCANNED="$(cat "$LOOT_FILE" | grep "Nmap done" | awk -F '[()]' '{print $2}' | awk '{print $1}')"
+          LOG "$HOSTS_SCANNED Scanned"
+          ALERT "Scan $COUNT Done. \n$HOSTS_SCANNED Scanned" 2
+          ALERT "Scan $COUNT Done. \n$HOSTS_SCANNED Scanned \n← Continue" -1 false
+        ;;
+        *)
+          PORTS_FOUND="$(cat "$LOOT_FILE" | grep "/" | grep -v -e "Not shown" -e "Starting Nmap" | wc -l)"
+          LOG "$PORTS_FOUND ports seen"
+          ALERT "Scan $COUNT Done. \nPorts seen $PORTS_FOUND" 2
+          ALERT "Scan $COUNT Done. \nPorts seen $PORTS_FOUND \n← Continue" -1 false
+          RESP="$(OPTION_DIALOG "View Results?" " Yes " " No ")"
+          if [ "$RESP" = " Yes " ]; then
+            show_results_ports
+          fi
+        ;;
+      esac
+    ;;
+    *)
+      LOG "Scan $COUNT done."
+      ALERT "SCAN $COUNT DONE" 2
+      ALERT "SCAN $COUNT DONE \n← Continue" -1 false
+    ;;
+  esac
+}
+
+show_results_ports() {
+  # Build a results menu based on the port scan loot/log file
+  CLEAR_MENU "results"
+  CREATE_SPINNER "Loading..."
+  RESULTS="$(cat $LOOT_FILE | grep -e "tcp" -e "udp" | grep -v -e "Not shown" -e "Starting Nmap")"
+  # Loop over the loot file, building a menu item out of each item which matches our expected results
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    port="$(echo "$line" | awk {'print $1'})"
+    state="$(echo "$line" | awk {'print $2'})"
+    service="$(echo "$line" | awk '{for (i=3; i<=NF; i++) printf "%s%s", $i, (i<NF ? " " : "\n")}')"
+    ADD_SUBMENU_ITEM "results" "$port $state" "results_menu_${port}"
+    ADD_SUBMENU_ITEM "results_menu_${port}" "$service" "noop"
+    ADD_SUBMENU_ITEM "results_menu_${port}" "Back" "Back"
+  done <<< "$RESULTS"
+  ADD_SUBMENU_ITEM "results" "Back" "Back"
+  STOP_SPINNER
+  SELECT_MENU results
+}
+
+show_results_list() {
+  # Build a results menu based on the list scan loot/log file
+  CLEAR_MENU "results"
+  CREATE_SPINNER "Loading..."
+  RESULTS="$(cat $LOOT_FILE | grep "Nmap scan report for" | grep '(')"
+  # Loop over the loot file, building a menu item out of each item which matches our expected results
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    hostname="$(echo "$line" | grep "Nmap scan report for" | grep "(" | awk '{gsub(/\.lan$/, "", $5); print $5}')"
+    ip="$(echo "$line" | grep "Nmap scan report for" | grep "(" | awk {'print $6'} | sed 's/(//' | sed 's/)//')"
+    ADD_SUBMENU_ITEM "results" "$ip $hostname" "results_menu_${ip}"
+    ADD_SUBMENU_ITEM "results_menu_${ip}" "$hostname" "noop"
+    # Give the option to scan the individual target
+    ADD_SUBMENU_ITEM "results_menu_${ip}" "Scan Target" "set_new_target" "${ip}"
+    ADD_SUBMENU_ITEM "results_menu_${ip}" "Back" "Back"
+  done <<< "$RESULTS"
+  ADD_SUBMENU_ITEM "results" "Back" "Back"
+  STOP_SPINNER
+  SELECT_MENU results
+}
+
+show_results_ping() {
+  # Build a results menu based on the port scan loot/log file
+  CLEAR_MENU "results"
+  CREATE_SPINNER "Loading..."
+  RESULTS="$(cat $LOOT_FILE | grep "Nmap scan report for" | grep '(')"
+  # Loop over the loot file, building a menu item out of each item which matches our expected results
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    hostname="$(echo "$line"| grep "Nmap scan report for" | sed 's/Nmap scan report for '//g | sed 's/(//' | sed 's/)//' | awk '{if ($1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) print "noname", $0; else print $0}' | awk '{gsub(/\.lan$/, "", $1); print $1}')"
+    ip="$(echo "$line" | grep "Nmap scan report for" | sed 's/Nmap scan report for '//g | sed 's/(//' | sed 's/)//' | awk '{if ($1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) print "noname", $0; else print $0}' | awk '{print $2}')"
+    ADD_SUBMENU_ITEM "results" "$ip $hostname" "results_menu_${ip}"
+    ADD_SUBMENU_ITEM "results_menu_${ip}" "$hostname" "noop"
+    # Give the option to scan the individual target
+    ADD_SUBMENU_ITEM "results_menu_${ip}" "Scan Target" "set_new_target" "${ip}"
+    ADD_SUBMENU_ITEM "results_menu_${ip}" "Back" "Back"
+  done <<< "$RESULTS"
+  ADD_SUBMENU_ITEM "results" "Back" "Back"
+  STOP_SPINNER
+  SELECT_MENU results
+}
+
+set_new_target() {
+  # Let the user initiate a new scan on the selected target
+  SCAN_TARGET=$SELECTED_ITEM_DATA
+  RESP="$(OPTION_DIALOG "Scan now? $SCAN_TARGET" " Now " " Later ")"
+  case "$RESP" in
+    " Later ")
+      ALERT "New Target Set: $SCAN_TARGET ← to Return" -1 false
+      SELECT_MENU main_menu
+    ;;
+    " Now ")
+      RESP="$(OPTION_DIALOG "Scan Type" "Port" "Service")"
+      case "$RESP" in
+        "Port")
+          SCAN_NOW=1
+          set_port_scan
+        ;;
+        "Service")
+          SCAN_NOW=1
+          set_service_scan
+        ;;
+      esac
+    ;;
+  esac
+}
+
+setup_payload
+get_config_options
+initialize_menu
+# 1337 ANSI art
+ALERT "\
+                \
+▌ ▐ ▐   ▌ ▄▄ ▐▀▌\
+█ ▐ ▐█ █▌▐  ▌▐ ▌\
+▌▌▐ ▐▐ ▌▌▐▄▄▌▐▄▌\
+▌▐▐ ▐▐ ▌▌▐  ▌▐  \
+▌ █ ▐ █ ▌▐  ▌▐  \
+" 1 false true
+START_MENU

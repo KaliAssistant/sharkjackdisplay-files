@@ -1,0 +1,28 @@
+#!/bin/bash
+
+SCREEN_WRITE "Default args"
+sleep 1 # give SCREEN_WRITE time to draw before drawing confirmation dialog over it
+
+# Default title: "Are you sure?"
+# Default button: "Confirm"
+resp="$(CONFIRMATION_DIALOG)"
+if [ "$resp" = "Confirm" ]; then
+  SCREEN_WRITE "User confirmed!"
+else
+  SCREEN_WRITE "User cancelled!"
+fi
+
+sleep 2
+
+SCREEN_WRITE "Custom args"
+
+sleep 1 # give SCREEN_WRITE time to draw before drawing confirmation dialog over it
+
+# Custom Title and button
+resp="$(CONFIRMATION_DIALOG "Start XYZ?" "Start")"
+if [ "$resp" = "Start" ]; then
+  SCREEN_WRITE "User confirmed!"
+else
+  SCREEN_WRITE "User cancelled!"
+fi
+

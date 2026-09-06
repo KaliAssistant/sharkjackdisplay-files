@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# This script is used to factory reset the device
+
+export LOG="logger -t Shark [*]"
+export LOG_ERR="logger -t Shark -p 3 [!]"
+
+upgrade_leds() {
+  LED OFF
+  while true
+  do
+    LED RED
+    sleep 0.2
+    LED BLUE
+    sleep 0.2
+  done
+}
+
+execute_reset() {
+    if [ "$(BATTERY)" != "Charging" ]; then
+      ALERT "Power Source Required" 1 false
+      exit 1
+    fi
+    resp="$(COUNTDOWN "Starting Reset" 10)"
+    if [ "$resp" = "Cancelled" ]; then
+      ALERT "Cancelled" 2 false
+      exit 0
+    fi
+    upgrade_leds &
+    echo "jffs2reset -y && sleep 30 && reboot" | at now
+    BLOCKING_ALERT "\n      RESET\n   IN PROGRESS\n\n  DO NOT UNPLUG\n\nDO NOT POWER OFF\n" -1 false true
+    sleep 300
+    exit 2
+}
+
+execute_reset

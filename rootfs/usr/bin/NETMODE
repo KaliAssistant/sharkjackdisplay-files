@@ -1,0 +1,235 @@
+#!/bin/bash
+
+# This script is used to set the NETMODE of the device
+
+
+# Usage by user
+# NETMODE (OFF|STATIC|DHCP_CLIENT|DHCP_SERVER|AUTO) (optional) IP_x.x.x.x SUBNET_x.x.x.x GATEWAY_x.x.x.x
+
+# NOTE: it is the caller's responsability to display
+# alerts/spinners/log messages for changing netmodes to the user if desired
+
+# Developer note
+# If true is passed as the 2nd parameter to this script, we will treat this as being called DURING boot.
+# This changes how services are managed.
+# TO BE USED ONLY DURING BOOT VIA init.d
+
+source /usr/lib/shark_helpers
+source /usr/lib/spinner_tools
+
+# Handle boot mode argument
+boot_mode=false
+if [[ "$2" == "true" ]]; then
+  boot_mode=true
+  shift
+fi
+
+
+# Parse static IP settings if passed as arguments
+args_passed=0
+while [ -n "$2" ]; do
+  case "$2" in
+    IP_*)
+      IP="${2#IP_}"
+      ((args_passed++))
+    ;;
+    SUBNET_*)
+      SUBNET="${2#SUBNET_}"
+      ((args_passed++))
+    ;;
+    GATEWAY_*)
+      GATEWAY="${2#GATEWAY_}"
+      ((args_passed++))
+    ;;
+  esac
+  shift
+done
+
+
+if [[ "$args_passed" -gt 0 ]] && [[ "$args_passed" -ne 3 ]]; then
+  logger -t SharkNETMODE "Exiting. Missing arguments, IP,SUBNET,GATEWAY must be defined together if any are passed; passing none will use defaults defined in config.txt"
+  LED RED
+  exit 1
+fi
+
+# Default to configured values if not overridden by passed arguments
+IP="${IP:-$(GET_CONFIG_OPTION NETMODE_IP)}"
+SUBNET="${SUBNET:-$(GET_CONFIG_OPTION NETMODE_NETMASK)}"
+GATEWAY="${GATEWAY:-$(GET_CONFIG_OPTION NETMODE_GATEWAY)}"
+
+# Make sure we cannot enter an invalid NETMODE,
+# all UI's should prevent this but manually editing the config does not.
+fallback=false
+validated_ip="$(validate_and_strip_ip "$IP")"
+if [ -z "$validated_ip" ]; then
+  fallback=true
+fi
+validated_subnet="$(validate_and_strip_ip "$SUBNET")"
+if [ -z "$validated_subnet" ]; then
+  fallback=true
+fi
+validated_gateway="$(validate_and_strip_ip "$GATEWAY")"
+if [ -z "$validated_gateway" ]; then
+  fallback=true
+fi
+if [ "$fallback" = "true" ]; then
+  logger -t SharkNETMODE "ERROR: INVALID NETMODE CONFIG - falling back to stock defaults"
+  ALERT "Invalid NETMODE Config" 2
+  IP="172.16.24.1"
+  SUBNET="255.255.255.0"
+  GATEWAY="172.16.24.1"
+fi
+
+show_usage() {
+    echo "Usage: $0 [DHCP_CLIENT|DHCP_SERVER|AUTO|STATIC|OFF]"
+    echo ""
+}
+
+shut_it_all_down() {
+    if [ "$boot_mode" = "false" ]; then
+      logger -t SharkNETMODE "Stopping services..."
+      /etc/init.d/dnsmasq stop 2>/dev/null
+
+      timeout=5
+      while pidof dnsmasq >/dev/null && [ $timeout -gt 0 ]; do
+        sleep 0.1
+        logger -t SharNETMODE "DNSMASQ STILL RUNNING"
+        timeout=$((timeout - 1))
+      done
+
+      # just in case
+      killall -9 dnsmasq 2>/dev/null
+      killall -9 udhcpc 2>/dev/null
+      killall -9 odhcpcd 2>/dev/null
+      logger -t SharNETMODE "Services killed"
+
+      timeout=5
+      while pidof dnsmasq >/dev/null && [ $timeout -gt 0 ]; do
+        sleep 0.1
+        logger -t SharNETMODE "[!] ERROR: DNSMASQ STILL RUNNING"
+        timeout=$((timeout - 1))
+      done
+    fi
+}
+
+configure_dhcp_client() {
+    logger -t SharkNETMODE "Entering NETMODE DHCP_CLIENT..."
+    shut_it_all_down
+    uci set network.eth0=interface
+    uci set network.eth0.device='eth0'
+    uci set network.eth0.proto='dhcp'
+    uci commit network
+
+    if [ "$boot_mode" = "false" ]; then
+      logger -t SharkNETMODE "Restart Network"
+      /etc/init.d/network restart > /dev/null 2>&1
+    fi
+}
+
+configure_dhcp_server() {
+    logger -t SharkNETMODE "Entering NETMODE DHCP_SERVER..."
+    shut_it_all_down
+    uci set network.eth0=interface
+    uci set network.eth0.device='eth0'
+    uci set network.eth0.proto='static'
+    uci set network.eth0.ipaddr="$IP"
+    uci set network.eth0.netmask="$SUBNET"
+
+    leases="$(calculate_leases "$SUBNET")"
+    uci set dhcp.eth0=dhcp
+    uci set dhcp.eth0.interface='eth0'
+    uci set dhcp.eth0.start='2'
+    uci set dhcp.eth0.limit="$leases"
+    uci set dhcp.eth0.leasetime='12h'
+    uci set dhcp.eth0.dhcp_option="3,$GATEWAY" # Set default gateway
+    uci commit network
+    uci commit dhcp
+
+    if [ "$boot_mode" = "false" ]; then
+      logger -t SharkNETMODE "Restart Network"
+      /etc/init.d/network restart > /dev/null 2>&1
+      logger -t SharkNETMODE "Restart dnsmasq"
+      /etc/init.d/dnsmasq restart > /dev/null 2>&1
+    else
+      # start dnsmasq when called by init.d/boot
+      /etc/init.d/dnsmasq start > /dev/null 2>&1
+    fi
+}
+
+configure_static() {
+    logger -t SharkNETMODE "Entering NETMODE STATIC..."
+    uci set network.eth0=interface
+    uci set network.eth0.device='eth0'
+    uci set network.eth0.proto='static'
+    uci set network.eth0.ipaddr="$IP"
+    uci set network.eth0.netmask="$SUBNET"
+    uci commit network
+
+    if [ "$boot_mode" = "false" ]; then
+      logger -t SharkNETMODE "Restart Network"
+      /etc/init.d/network restart > /dev/null 2>&1
+    fi
+}
+
+configure_off() {
+    logger -t SharkNETMODE "Entering NETMODE OFF..."
+    uci delete network.eth0
+    uci -q delete dhcp.eth0
+    uci commit network
+    uci commit dhcp
+
+    if [ "$boot_mode" = "false" ]; then
+      logger -t SharkNETMODE "Restart Network"
+      /etc/init.d/network restart > /dev/null 2>&1
+      logger -t SharkNETMODE "Stop dnsmasq"
+      /etc/init.d/dnsmasq stop > /dev/null 2>&1
+    fi
+}
+
+case $1 in
+    "OFF")
+        configure_off
+        echo "OFF" > /tmp/NETMODE
+        ;;
+    "STATIC")
+        configure_static
+        echo "STATIC" > /tmp/NETMODE
+        ;;
+    "DHCP_CLIENT")
+        configure_dhcp_client
+        echo "DHCP_CLIENT" > /tmp/NETMODE
+        ;;
+    "DHCP_SERVER")
+        configure_dhcp_server
+        echo "DHCP_SERVER" > /tmp/NETMODE
+        ;;
+    "AUTO")
+        if [ "$boot_mode" = "true" ]; then
+          # only allowed for use within payloads during runtime. Requires actively listening w/ tcpdump, configuring it as BOOT_NETMODE will save no time.
+          configure_off
+          exit 0
+        fi
+        echo "AUTO" > /tmp/NETMODE
+        logger -t SharkNETMODE "Entering NETMODE AUTO..."
+        CREATE_SPINNER "Starting NETMODE AUTO"
+        # make sure nothing interferes
+        shut_it_all_down
+        ifconfig eth0 up # most likely coming from NETMODE OFF, eth0 is down
+        if timeout 10 tcpdump -Z nobody -i eth0 -c 1 -q udp src port 68 > /dev/null 2>&1; then
+            # we saw a dhcp discover but no dhcp request, so someone wants a dhcp server and didn't find one
+            configure_dhcp_server
+            STOP_SPINNER
+            logger -t SharkNETMODE "NETMODE AUTO -> DHCP_SERVER"
+            ALERT "NETMODE DHCP_SERVER" 3 false
+        else
+            configure_dhcp_client
+            STOP_SPINNER
+            logger -t SharkNETMODE "NETMODE AUTO -> DHCP_CLIENT"
+            ALERT "NETMODE DHCP_CLIENT" 3 false
+        fi
+        ;;
+    *)
+        show_usage
+        exit 0
+        ;;
+esac

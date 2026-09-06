@@ -1,0 +1,202 @@
+#!/bin/bash
+
+# This script is used to a prompt the user to set text up to 16 chars
+
+# Usage:
+#   TEXT_PICKER "Title" "default_value" "custom_alphabet"
+# Example:
+#   TEXT_PICKER "Set MAC:" "$mac" "0123456789abcdefX"
+
+source /usr/lib/shark_helpers
+disable_cursor_blink
+
+# Default alphabet if none provided
+default_alphabet=('a' 'A' 'b' 'B' 'c' 'C' 'd' 'D' 'e' 'E' 'f' 'F' 'g' 'G'
+                  'h' 'H' 'i' 'I' 'j' 'J' 'k' 'K' 'l' 'L' 'm' 'M' 'n' 'N'
+                  'o' 'O' 'p' 'P' 'q' 'Q' 'r' 'R' 's' 'S' 't' 'T' 'u' 'U'
+                  'v' 'V' 'w' 'W' 'x' 'X' 'y' 'Y' 'z' 'Z'
+                  '0' '1' '2' '3' '4' '5' '6' '7' '8' '9'
+                  '.' ',' '!' '@' '#' '$' '%' '^' '&' '*' '(' ')' '-' '_'
+                  '=' '+' '[' ']' '{' '}' ';' ':' "'" '"' ' ')
+
+title="${1:-Text Picker}"
+input="${2:-}"
+custom_alphabet_raw="${3:-}"
+characters=()
+
+if [[ -n "$custom_alphabet_raw" ]]; then
+  custom_alphabet_clean="$(echo -n "$custom_alphabet_raw" | tr -d '\r\n')"
+
+  IFS=' ' read -r -a alphabet < <(echo "$custom_alphabet_clean" | sed 's/./& /g')
+else
+  alphabet=("${default_alphabet[@]}")
+fi
+
+logger -t Shark "ALPHABET:|${alphabet[@]}|"
+
+for ((i = 0; i < ${#input}; i++)); do
+  char="${input:i:1}"
+  if [[ $char =~ [[:print:]] ]]; then
+    characters+=("$char")
+  fi
+done
+
+selected_character=0
+in_edit_mode=false
+
+render_text_picker() {
+  local screen_output
+  screen_output+="$(center_text "$title")\n\n"
+
+  local top_line=""
+  for i in "${!characters[@]}"; do
+    if [[ $i -eq $selected_character ]]; then
+      top_line+="▲"
+    else
+      top_line+=" "
+    fi
+  done
+  screen_output+="$(center_text "$top_line")\n"
+
+  local middle_line=""
+  for i in "${!characters[@]}"; do
+    if [[ $i -eq $selected_character ]]; then
+      if [[ $in_edit_mode == true ]]; then
+        middle_line+="\033[7m${characters[$i]}\033[0m"
+      else
+        middle_line+="${characters[$i]}"
+      fi
+    else
+      middle_line+="${characters[$i]}"
+    fi
+  done
+
+  local visible_length=0
+  for char in "${characters[@]}"; do
+    if [[ $char =~ [[:cntrl:]] ]]; then
+      continue
+    fi
+    ((visible_length++))
+  done
+
+  local padding=$(((16 - visible_length) / 2))
+  local extra_space=$(((16 - visible_length) % 2))
+  screen_output+="$(printf "%*s%s%*s" $((padding + extra_space)) "" "$middle_line" "$padding" "")\n"
+
+  local bottom_line=""
+  for i in "${!characters[@]}"; do
+    if [[ $i -eq $selected_character ]]; then
+      bottom_line+="▼"
+    else
+      bottom_line+=" "
+    fi
+  done
+  screen_output+="$(center_text "$bottom_line")\n\n"
+
+  local save_option="Save"
+  local back_option="← Back"
+  if [[ $selected_character -eq ${#characters[@]} ]]; then
+    back_option="\033[7m← Back\033[0m"
+  elif [[ $selected_character -eq $((${#characters[@]} + 1)) ]]; then
+    save_option="\033[7mSave\033[0m"
+  fi
+  screen_output+="$(center_special_text "$back_option $save_option")"
+
+  clear_screen
+  screen_write "$screen_output\n"
+}
+
+find_char_index_in_alphabet() {
+  local current_char="$1"
+  for i in "${!alphabet[@]}"; do
+    if [[ "${alphabet[$i]}" == "$current_char" ]]; then
+      echo "$i"
+      return
+    fi
+  done
+  echo "-1"
+}
+
+btn_text_picker_input() {
+  local button_input=$1
+  case "$button_input" in
+    "switch-middle")
+      if [[ $selected_character -eq ${#characters[@]} ]]; then
+        handle_text_picker_back
+      elif [[ $selected_character -eq $((${#characters[@]} + 1)) ]]; then
+        save_text
+      else
+        in_edit_mode=$([[ $in_edit_mode == false ]] && echo true || echo false)
+      fi
+      ;;
+    "switch-left")
+      if [[ $in_edit_mode == true ]]; then
+        local current_char="${characters[$selected_character]}"
+        local index
+        index="$(find_char_index_in_alphabet "$current_char")"
+        if [[ $index -lt 0 ]]; then
+          index=0
+        fi
+        # Move one left, wrap if needed
+        ((index--))
+        if [[ $index -lt 0 ]]; then
+          index=$(( ${#alphabet[@]} - 1 ))
+        fi
+        characters[$selected_character]="${alphabet[$index]}"
+      else
+        # Move the cursor (selected_character) one place to the right
+        ((selected_character++))
+        selected_character=$(( selected_character % ( ${#characters[@]} + 2 ) ))
+      fi
+      ;;
+    "switch-right")
+      if [[ $in_edit_mode == true ]]; then
+        local current_char="${characters[$selected_character]}"
+        local index
+        index="$(find_char_index_in_alphabet "$current_char")"
+        if [[ $index -lt 0 ]]; then
+          index=0
+        fi
+        # Move one right, wrap if needed
+        ((index++))
+        if [[ $index -ge ${#alphabet[@]} ]]; then
+          index=0
+        fi
+        characters[$selected_character]="${alphabet[$index]}"
+      else
+        # Move the cursor (selected_character) one place to the left
+        ((selected_character--))
+        if [[ $selected_character -lt 0 ]]; then
+          selected_character=$(( ${#characters[@]} + 1 ))
+        fi
+      fi
+      ;;
+  esac
+}
+
+save_text() {
+  local output_text=""
+  for char in "${characters[@]}"; do
+    output_text+="$char"
+  done
+  exit_text_picker=true
+  echo "$output_text"
+}
+
+handle_text_picker_back() {
+  exit_text_picker=true
+  echo "← Back"
+}
+
+text_picker() {
+  exit_text_picker=false
+  while [[ $exit_text_picker == false ]]; do
+    render_text_picker
+    button_input=$(/usr/sbin/dialog_button_listener)
+    btn_text_picker_input "$button_input"
+  done
+}
+
+echo "TEXT_PICKER" >> /tmp/suppress_screen_service_scroll
+text_picker
+rm /tmp/suppress_screen_service_scroll

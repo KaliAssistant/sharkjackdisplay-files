@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# This script is used by the framework to validate the contents of config.txt
+# if a config value is invalid or missing it will be populated with the default values
+
+CONFIG_FILE="/root/config.txt"
+
+# Define default values and valid options
+declare -A DEFAULTS=(
+    ["BOOT_NETMODE"]="OFF"
+    ["AUTOEXEC"]="TRUE"
+    ["AUTOEXEC_TIMEOUT"]="3"
+    ["AUTOEXEC_TIMEOUT_FLASH"]="TRUE"
+    ["ARMING_MODE_NETMODE"]="DHCP_SERVER"
+    ["ARMING_MODE_SSH"]="TRUE"
+    ["THEME"]="DARK"
+    ["BACKLIGHT"]="FALSE"
+    ["C2_ENABLED"]="FALSE"
+    ["NTP_ENABLED"]="FALSE"
+    ["SSH_ENABLED"]="FALSE"
+    ["NETMODE_IP"]="172.16.24.1"
+    ["NETMODE_NETMASK"]="255.255.255.0"
+    ["NETMODE_GATEWAY"]="172.16.24.1"
+    ["CONNECTION_CHECK_IP"]="8.8.8.8"
+    ["CONNECTION_CHECK_DOMAIN"]="google.com"
+    ["WAIT_FOR_LINK"]="TRUE"
+    ["PROTECTED_ARMING_MODE"]="TRUE"
+    ["PROTECTED_ARMING_MODE_PASS"]="0-0-0-0"
+    ["PAIRING_CODE"]="1-3-3-7"
+    ["PAIRING_PORT"]="1337"
+    ["MAC_ADDRESS"]="DEFAULT"
+    ["SCREENSAVER"]="SHARK"
+    ["SCREENSAVER_TIMEOUT"]="5"
+)
+
+declare -A VALID_OPTIONS=(
+    ["AUTOEXEC"]="^(TRUE|FALSE)$"
+    ["AUTOEXEC_TIMEOUT"]="^[0-9]+$"
+    ["AUTOEXEC_TIMEOUT_FLASH"]="^(TRUE|FALSE)$"
+    ["ARMING_MODE_NETMODE"]="^(DHCP_SERVER|DHCP_CLIENT|OFF|STATIC|AUTO)$"
+    ["BOOT_NETMODE"]="^(DHCP_SERVER|DHCP_CLIENT|OFF|STATIC)$"
+    ["ARMING_MODE_SSH"]="^(TRUE|FALSE)$"
+    ["THEME"]="^(DARK|LIGHT)$"
+    ["BACKLIGHT"]="^(TRUE|FALSE)$"
+    ["C2_ENABLED"]="^(TRUE|FALSE)$"
+    ["NTP_ENABLED"]="^(TRUE|FALSE)$"
+    ["SSH_ENABLED"]="^(TRUE|FALSE)$"
+    ["NETMODE_IP"]="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
+    ["NETMODE_NETMASK"]="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
+    ["NETMODE_GATEWAY"]="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
+    ["CONNECTION_CHECK_IP"]="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
+    ["CONNECTION_CHECK_DOMAIN"]="^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$"
+    ["WAIT_FOR_LINK"]="^(TRUE|FALSE)$"
+    ["SCREENSAVER"]="^(SHARK|TOASTER|NONE|BLANK)$"
+    ["SCREENSAVER_TIMEOUT"]="^[0-9]+$"
+    ["PROTECTED_ARMING_MODE"]="^(TRUE|FALSE)$"
+    ["PROTECTED_ARMING_MODE_PASS"]="^[0-9]-[0-9]-[0-9]-[0-9]$"
+    ["MAC_ADDRESS"]="^(RANDOM|DEFAULT|([A-Fa-f0-9X]{2}:){5}[A-Fa-f0-9X]{2})$"
+    ["PAIRING_CODE"]="^([0-9]+-[0-9]+-[0-9]+-[0-9]+)$"
+    ["PAIRING_PORT"]="^(6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|[1-5][0-9]{4}|[0-9]{1,4})$"
+)
+
+validate_option() {
+  local key="$1"
+  local value="$2"
+
+  if [[ -n "${VALID_OPTIONS[$key]}" && ! "$value" =~ ${VALID_OPTIONS[$key]} ]]; then
+    logger -t SharkValidateConfig "Invalid value for $key: $value. Resetting to default: ${DEFAULTS[$key]}"
+    SET_CONFIG_OPTION "$key" "${DEFAULTS[$key]}"
+  # else
+  #     echo "$key: $value"
+  fi
+}
+
+update_config() {
+  for key in "${!DEFAULTS[@]}"; do
+    value=$(GET_CONFIG_OPTION "$key" 2>&1)
+
+    if [[ "$value" =~ ^Error: ]]; then
+      logger -t SharkValidateConfig "Missing $key, setting default: ${DEFAULTS[$key]}"
+      SET_CONFIG_OPTION "$key" "${DEFAULTS[$key]}"
+    else
+      validate_option "$key" "$value"
+    fi
+  done
+}
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  logger -t SharkValidateConfig "Config file not found. Creating $CONFIG_FILE with default values."
+  touch "$CONFIG_FILE"
+  for key in "${!DEFAULTS[@]}"; do
+    echo "$key ${DEFAULTS[$key]}" >> "$CONFIG_FILE"
+  done
+  exit 0
+fi
+
+update_config

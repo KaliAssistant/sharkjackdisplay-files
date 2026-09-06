@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# This script will tell the screen service to redraw the payload log on screen
+# this is useful if your payload does something that takes over the screen
+# but you want to immediately have the log redraw without waiting for new data
+
+prefix=$'\x01'
+line="${prefix}REDRAW"
+echo "$line" > /tmp/screen
+

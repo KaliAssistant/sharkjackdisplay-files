@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# Prompt the user to confirm/accept
+
+# Usage
+# CONFIRMATION_DIALOG "Are you sure?" "Yes"
+
+# script will echo "← Back" if user canceled
+# script will echo the affirmative label if user selected it
+# by default that value is "Confirm", unless otherwise passed by 2nd argument
+
+source /usr/lib/shark_helpers
+disable_cursor_blink
+
+title="${1:-"Are you sure?"}"
+save_label="${2:-"Confirm"}"
+selected_option=0
+
+render_confirmation_dialog() {
+  local screen_output
+
+  screen_output+="$(split_and_center_vertically "$title" 4 5)\n\n"
+
+  local save_option="$save_label"
+  #local back_option="← Back"
+  local back_option=" Back "
+
+  if [[ $selected_option -eq 0 ]]; then
+    #back_option="\033[7m← Back\033[0m"
+    back_option="\033[7m Back \033[0m"
+  elif [[ $selected_option -eq 1 ]]; then
+    save_option="\033[7m$save_label\033[0m"
+  fi
+
+  screen_output+="$(center_special_text "$back_option $save_option")"
+
+  clear_screen
+  screen_write "$screen_output\n"
+}
+
+btn_confirmation_dialog_input() {
+  local button_input=$1
+
+  case "$button_input" in
+    "switch-left")
+      selected_option=$((selected_option - 1))
+      [[ $selected_option -lt 0 ]] && selected_option=1
+      ;;
+    "switch-right")
+      selected_option=$((selected_option + 1))
+      [[ $selected_option -gt 1 ]] && selected_option=0
+      ;;
+    "switch-middle")
+      handle_selection
+      ;;
+  esac
+}
+
+handle_selection() {
+  if [[ $selected_option -eq 0 ]]; then
+    echo "← Back"
+  elif [[ $selected_option -eq 1 ]]; then
+    echo "$save_label"
+  fi
+  rm /tmp/suppress_screen_service_scroll
+  exit 0
+}
+
+confirmation_dialog() {
+  while true; do
+    render_confirmation_dialog
+    button_input=$(/usr/sbin/dialog_button_listener)
+    btn_confirmation_dialog_input "$button_input"
+  done
+}
+
+logger -t SharkConfirmation "Create Confirmation Dialog: $1 $2"
+echo "CONFIRMATION_DIALOG" >> /tmp/suppress_screen_service_scroll
+confirmation_dialog

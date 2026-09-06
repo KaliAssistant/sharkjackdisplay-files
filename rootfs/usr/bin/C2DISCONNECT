@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Script used to stop C2 Client from payloads
+
+/etc/init.d/cc-client stop
+

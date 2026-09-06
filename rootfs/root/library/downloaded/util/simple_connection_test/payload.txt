@@ -1,0 +1,45 @@
+#!/bin/bash
+# Title: Internet Test
+# Author: Hak5Darren
+# Props: Korben
+# Description: Tests Internet connection incrementally: 
+# Ping gateway, option IP, option Hostname. wget hostname (HTTP/HTTPS). Public IP check.
+LED SETUP
+TEST_IP="8.8.8.8"
+TEST_HOST="www.example.com"
+
+set_host_ip(){
+  TEST_IP="$(IP_PICKER "IP Address" "001.001.001.001")"
+}
+set_host_name(){
+  TEST_HOST="$(TEXT_PICKER "Hostname" "www.example.com" "abcdefghijklmnopqrstuvwxyz0123456789-.")" 
+}
+show_options(){ 
+  ALERT "Test IP:\n$TEST_IP\n\nTest Host:\n$TEST_HOST" -1 false true; SELECT_MENU main_menu
+}
+
+test_connection(){
+  CREATE_SPINNER "Starting DHCP"
+    NETMODE DHCP_CLIENT
+  STOP_SPINNER
+  WAIT_FOR_LINK
+  WAIT_FOR_IP
+  ENABLE_NTP
+  gateway="$(ip route | awk '/default/ {print $3}')"
+  ping -c2 $gateway && SCREEN_WRITE "OK Gateway Ping" || SCREEN_WRITE "FAIL Gtway Ping"
+  ping -c2 $TEST_IP && SCREEN_WRITE "OK IP Ping" || SCREEN_WRITE "FALI IP Ping"
+  ping -c2 $TEST_HOST && SCREEN_WRITE "OK Host Ping" || SCREEN_WRITE "FAIL Host Ping"
+  wget -q --timeout=3 "http://$TEST_HOST" -O- && SCREEN_WRITE "OK HTTP" || SCREEN_WRITE "FAIL HTTP"
+  wget -q --timeout=3 "https://$TEST_HOST" -O- && SCREEN_WRITE "OK HTTPS" || SCREEN_WRITE "FAIL HTTPS"
+  PUB_IP="$(curl -s https://checkip.amazonaws.com)" && SCREEN_WRITE "Public IP:"; SCREEN_WRITE "$PUB_IP" || SCREEN_WRITE "Public IP FAIL"
+  LED FINISH
+  exit
+}
+
+ADD_MENU_ITEM "Start" "test_connection"
+ADD_MENU_ITEM "Options" "menu_options"
+ADD_MENU_ITEM "Quit" "EXIT_MENU"
+ADD_SUBMENU_ITEM "menu_options" "IP Address" "set_host_ip"
+ADD_SUBMENU_ITEM "menu_options" "Hostname" "set_host_name"
+ADD_SUBMENU_ITEM "menu_options" "Done" "show_options"
+START_MENU

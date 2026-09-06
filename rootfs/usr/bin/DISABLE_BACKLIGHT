@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# This will make the screen dimmer
+
+echo 0 > /sys/class/gpio/screen-power/value

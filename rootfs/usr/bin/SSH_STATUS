@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# This script returns the current state of the OpenSSH Server on the device
+
+/etc/init.d/sshd status

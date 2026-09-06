@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# This script is used to validate and upgrade the firmware of the device given a
+# valid firmware file path as the argument
+
+# ONLY use this as a manual, offline, fallback method of flashing
+
+# Firmware .bin MUST be SPECIFICALLY for Shark Jack Display ONLY
+
+# Failure to use this script correctly will require firmware recovery via uboot
+
+export LOG="logger -t Shark [*]"
+export LOG_ERR="logger -t Shark -p 3 [!]"
+
+upgrade_leds() {
+  LED OFF
+  while true
+  do
+    LED RED
+    sleep 0.2
+    LED BLUE
+    sleep 0.2
+  done
+}
+
+execute_upgrade() {
+  upgrade_file=$1
+
+  if [ -f "${upgrade_file}" ]; then
+    $LOG "Firmware upgrade found"
+    echo "Firmware upgrade found"
+
+    $LOG "Verifying firmware upgrade"
+    echo "Verifying firmware upgrade"
+
+    /usr/sbin/prepare_upgrade "$upgrade_file"
+    resp=$?
+    if [ "$resp" -ne 0 ]; then
+      $LOG "Firmware verification failed"
+      echo "Firmware Verification Failed"
+
+      rm "$upgrade_file"
+      rm "$upgrade_file.sig"
+      exit 1
+    fi
+
+    $LOG "Firmware upgrade verified"
+    echo "Firmware upgrade verified"
+
+    $LOG "Executing UPGRADE"
+    echo "Executing UPGRADE"
+
+    upgrade_leds &
+    BLOCKING_ALERT "\n     UPGRADE\n   IN PROGRESS\n\n  DO NOT UNPLUG\n\nDO NOT POWER OFF\n" -1 false true &
+
+    sleep 2
+    echo "sysupgrade -n $upgrade_file" | at now
+    echo "UPDATING"
+    sleep 120
+    exit 2
+  fi
+}
+
+if [ "$(BATTERY)" != "Charging" ]; then
+  echo "Power Source Required"
+  exit 1
+fi
+
+if [ -n "$1" ]; then
+  execute_upgrade $1
+else
+  echo "Usage: execute_upgrade <upgrade file>"
+fi
+

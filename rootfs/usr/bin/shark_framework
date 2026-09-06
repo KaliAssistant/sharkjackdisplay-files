@@ -1,0 +1,1879 @@
+#!/bin/bash
+
+# Shark Jack Display Framework
+# (C) Hak5 2025
+
+# This must be started by either init.d OR /usr/bin/SHARK
+#                                                     ██▓▓█
+#                                          █▓▓▓▓▓▓▓▓▓▒▒▒▒▒▓
+#                                    ▓██▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒░▒▓
+#                                █▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓░░░░░▒
+#                            █▓▒▒▒▒▒▒▒▒▒▓██▓▓▒▒░░░░░░░░░▒
+#       ▓▓▓██            █▓▓▒▒▒▒▒▒▒▒▒▒▒▒███▓▒░░░░░░░░░░▓
+#       ▓▓▒▒▒▒▒▓▓█    █▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░▒▒░░▒▓
+#        ▓▓▒▒▒▒▒▒▒▒▒▓▓▓▒▒▒▓▒▒▓▓▒▒▒▒▒▒▒▒░░░░▒▓█▒▓▓▓██████
+#         ▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▒▒▓▒▒▒▓▓▓▓▒▒▒▓▓▒░░░░░▒▓███ █████
+#          █▓▓▓▒▒▒▒▒▒▒▒▓▒▒▓▒▒▓██▓▓▒░░░░▒▓▓▒░░░░░▓  ████
+#           █▓▓▓▓▓▒▒▒▒▒▓▒▒▓▓▓▓▓▒▒░░░░░▒▓█░░░░▓       ████
+#            █▓▓▓▒▒▒▒▓▓▒▓▒▒▓▓▒▒░░░░░░░▒█▒▒▓            ██
+#             █▓▓▒▒▓▒▒▒▒▒▓▓▒░░░░░░░░░░▓█               ████
+#             ▓▓▒▓▓▒▒▒▒▒▒▒▒░░░░░░░░▓█ ██              █████
+#            █▓▓▓▒▒▒▒▒▒▒▒░░░░░░░▓█   ███        █▓▓▒▒▒▒▓█
+#            █▓▓▒▒▒▒▒▓▓▒░░░░░▒▓▓     ███    █▓▒▓▓▓▒▒▓▓█
+#          █▓▓▒▒▒▒▓▓▓░░░░░░▒▓▓▓▓▓▓       █▓▓▓▓▒▒▒▒▒▓█
+#        █▓▓▒▒▒▓▓▓▒░░░░░░░▓█▓▓▓▓▓▓▓▓  █▓▓▓▓▓▒▒▒▒▒▓▓
+#     █▓▓▓▒▓▓▓██▓░░░░░░░░▓   ██▓▓▓▓▓█▓▒▓▓▓▒▒▒▒▒▓▓█
+#   ██▓▓▓▓██   █▓▒░░░░░░░▓█      ██▓▓▓▓▓▒▒▒▒▒▓▓
+#               █▓▒░░░░░░░▒▓▓▓▓██▓▓▓▓▓▓▒▒▒▒▓█
+#                 █▓░░░░░░░░▒▒▒▒▒▒▒▒▒▒▒▒▓▓█
+#                     ██▒▒░░░░░░░░░░▒▒▒▒▒▓
+#                               ▒░░▓▓▒▒▒▒▓▓
+#                                ▓▒░▒▓▒▒▒▒▒▓
+#                                  ▓░░▒▒▒▒▒▒▓
+#                                    ▓▒░▒▒▒▒▒▒▓
+#                                       ▒▒▒▒▒▓▓█
+
+RESTARTED_INTERACTIVELY="${1:-false}"
+
+LOCKFILE="/tmp/shark_framework.lock"
+# Attempt to acquire the lock
+exec 200>$LOCKFILE
+# Use flock to create a lock, non-blocking (-n) mode
+if ! flock -n 200; then
+    echo "Another instance of the shark service is already running. Exiting."
+    logger -t Shark "Duplicate Shark service prevented from being started"
+    exit 1
+fi
+
+framework_cleanup() {
+    rm -f "$LOCKFILE"
+    killall button_listener 2&>/dev/null
+    if [ -f "/tmp/framework_button_listener" ]; then
+      rm /tmp/framework_button_listener 2&>/dev/null
+    fi
+    exit 0
+}
+
+trap framework_cleanup SIGINT SIGTERM
+trap framework_cleanup EXIT
+
+source /usr/lib/shark_helpers
+source /usr/lib/spinner_tools
+disable_cursor_blink
+
+##########################################################
+## Menu Definitions ##
+##########################################################
+# Static
+menu_main=(
+  "Payloads:menu_payloads"
+  "Tools:menu_tools"
+  "Settings:menu_settings"
+  "About:menu_about"
+)
+# Static
+menu_tools=(
+  "Manage Loot:menu_loot"
+  "View Clients:launch_clients_menu"
+  "SharkLink:menu_shark_link"
+  "← Back"
+)
+# Static
+menu_mac_tools=(
+  "View MAC:launch_view_mac"
+  "Randomize:launch_mac_changer"
+  "Set MAC:launch_mac_setter"
+  "← Back"
+)
+# Static
+menu_shark_link=(
+  "Launch SharkLink:launch_shark_link"
+  "Configure:launch_configure_shark_link"
+  "← Back"
+)
+# Static
+menu_payloads=(
+  "Armed Payload:menu_default_payload"
+  "Browse Payloads:launch_payload_menu"
+  "Get Payloads:launch_get_payloads"
+  "← Back"
+)
+# Dynamic
+menu_default_payload=(
+  "No Armed Payload:go_back"
+  "Run Payload:launch_armed_payload"
+  "Remove Payload:remove_armed_payload"
+  "← Back"
+)
+# Static
+menu_settings=(
+  "This Session:menu_current_state"
+  "Arming Defaults:menu_armingmode_settings"
+  "Payload Settings:menu_payload_settings"
+  "Appearance:menu_appearance"
+  "Advanced:menu_advanced"
+  "System:menu_device"
+  "← Back"
+)
+# Static
+menu_advanced=(
+  "Boot Settings:menu_boot_settings"
+  "NETMODE Config:launch_netmode_settings"
+  "Protect Arming:menu_protected_arming"
+  "Connection Check:menu_connection_check"
+  "← Back"
+)
+# Static
+menu_connection_check=(
+  "Set IP:render_connection_check_ip_picker"
+  "Set Domain:render_connection_check_domain_picker"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_protected_arming=(
+  "Enabled:set_protected_arming_enabled"
+  "Disabled:set_protected_arming_disabled"
+  "← Back"
+)
+# Static
+menu_current_state=(
+  "Active NETMODE:menu_network_mode"
+  "SSH Server:menu_current_ssh"
+  "Network Time:menu_current_ntp"
+  "Cloud C²:menu_current_c2"
+  "MAC Address:menu_mac_tools"
+  "← Back"
+)
+# Static
+menu_current_ssh=(
+  "Start SSH:start_ssh"
+  "Stop SSH:start_ssh"
+  "← Back"
+)
+# Static
+menu_current_ntp=(
+  "Start NTP:start_ntp"
+  "Stop NTP:start_stop"
+  "Sync:sync_ntp"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_current_c2=(
+  "Start Client:start_c2"
+  "Stop Client:stop_c2"
+  "← Back"
+)
+# Static
+menu_payload_settings=(
+  "Autorun Payload:menu_autoexec"
+  "Autorun Timeout:render_autoexec_timeout_menu"
+  "Timeout Flash:render_autoexec_timeout_flash_menu"
+  "WAIT_FOR_LINK:menu_wait_for_link"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_wait_for_link=(
+  "Enable:enable_wait_for_link"
+  "Disable:disable_wait_for_link"
+  "← Back"
+)
+# Static
+menu_device=(
+  "Update:menu_update_firmware"
+  "Reset:menu_factory_reset"
+  "Reboot Device:menu_reboot"
+  "← Back"
+)
+# Static
+menu_services=(
+  "SSH Service:menu_ssh_server"
+  "Network Time:menu_ntp"
+  "Cloud C²:menu_cloud_c2"
+  "← Back"
+)
+# Static
+menu_appearance=(
+  "Backlight:menu_backlight"
+  "Theme:menu_theme"
+  "LED:menu_led"
+  "Screensaver:menu_screensaver"
+  "← Back"
+)
+# Static
+menu_boot_settings=(
+  "Services:menu_services"
+  "Boot NETMODE:menu_boot_network_mode"
+  "MAC Address:menu_boot_mac"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_boot_mac=(
+  "Default:set_default_boot_mac"
+  "Static:set_static_boot_mac"
+  "Random:set_random_boot_mac"
+  "← Back"
+)
+# Static
+menu_armingmode_settings=(
+  "ARMING NETMODE:menu_armingmode_network_mode"
+  "SSH Server:menu_armingmode_ssh_server"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_armingmode_ssh_server=(
+  "Enable:enable_armingmode_ssh"
+  "Disabled:disable_armingmode_ssh"
+  "← Back"
+)
+# Dynamic [selects active] - init.d/system level (rming/attackmode agnostic)
+menu_ssh_server=(
+  "Enable:enable_system_ssh"
+  "Disabled:disable_system_ssh"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_autoexec=(
+  "Enabled:enable_autoexec"
+  "Disabled:disable_autoexec"
+  "← Back"
+)
+# Static
+menu_loot=(
+  "View Loot:launch_loot_menu"
+  "Clear Loot:confirm_clear_loot"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_network_mode=(
+  "AUTO:netmode_auto"
+  "DHCP Server:netmode_dhcp_server"
+  "DHCP Client:netmode_dhcp_client"
+  "STATIC:netmode_static"
+  "OFF:netmode_off"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_ntp=(
+  "Enable:set_ntp_enabled"
+  "Disabled:set_ntp_disabled"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_cloud_c2=(
+  "Enable:set_c2_enabled"
+  "Disable:set_c2_disabled"
+  "De-register:deregister_c2"
+  "← Back"
+)
+# Static
+menu_update_firmware=(
+  "Update Device:check_for_updates"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_backlight=(
+  "Enabled:enable_backlight"
+  "Disabled:disable_backlight"
+  "← Back"
+)
+# Static
+menu_screensaver=(
+  "Style:menu_screensaver_style"
+  "Timeout:render_screensaver_timeout_menu"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_screensaver_style=(
+  "Blank:set_ss"
+  "Toaster:set_ss"
+  "Shark:set_ss"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_theme=(
+  "LIGHT:set_light_mode"
+  "DARK:set_light_mode"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_led=(
+  "Red:set_led"
+  "Green:set_led"
+  "Blue:set_led"
+  "Cyan:set_led"
+  "Magenta:set_led"
+  "Yellow:set_led"
+  "White:set_led"
+  "Off:set_led"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_boot_network_mode=(
+  "OFF:boot_netmode_off"
+  "DHCP Server:boot_netmode_dhcp_server"
+  "DHCP Client:boot_netmode_dhcp_client"
+  "STATIC:boot_netmode_static"
+  "← Back"
+)
+# Dynamic [selects active]
+menu_armingmode_network_mode=(
+  "DHCP Server:armingmode_netmode_dhcp_server"
+  "DHCP Client:armingmode_netmode_dhcp_client"
+  "STATIC:armingmode_netmode_static"
+  "OFF:armingmode_netmode_off"
+  "← Back"
+)
+# Static
+menu_factory_reset=(
+  "Reset Settings:launch_confirm_factory_settings"
+  "Factory Reset:launch_confirm_factory_reset"
+  "← Back"
+)
+# Static
+menu_reboot=(
+  "Reboot now:reboot_device"
+  "← Back"
+)
+# Static
+menu_about=(
+  "Networking:menu_about_networking"
+  "System:menu_about_system"
+  "Storage:menu_about_storage"
+  "Services:menu_about_services"
+  "← Back"
+)
+
+menu_about_system=()
+menu_about_networking=()
+menu_about_storage=()
+menu_about_services=()
+
+current_menu="menu_main"
+selected_index=0
+menu_stack=()
+visible_start=0
+visible_end=1
+rows_visible=1
+menu_data_dirty=true
+
+render_connection_check_ip_picker() {
+  config_connection_check_ip="$(GET_CONFIG_OPTION CONNECTION_CHECK_IP)"
+  ip="$(/usr/bin/NUMBER_PICKER "IP" "$(pad_ip $config_connection_check_ip)")"
+  if [ "$ip" = "← Back" ]; then
+    return
+  fi
+  ip="$(validate_and_strip_ip "$ip")"
+  if [ -z "$ip" ]; then
+    ALERT "Invalid IP" 3
+    return
+  fi
+  conf="$(CONFIRMATION_DIALOG "$ip")"
+  if [ "$conf" != "Confirm" ]; then
+    return
+  fi
+  ALERT "Complete!" 2 false
+  SET_CONFIG_OPTION CONNECTION_CHECK_IP "$ip"
+}
+
+render_connection_check_domain_picker() {
+  config_connection_check_domain="$(GET_CONFIG_OPTION CONNECTION_CHECK_DOMAIN)"
+  domain="$(TEXT_PICKER "Domain" "$(center_text $config_connection_check_domain)")"
+  if [ "$domain" = "← Back" ]; then
+   return 
+  fi
+  sanitized="$(validate_domain "$domain")"
+  if [ "$sanitized" = "invalid" ]; then
+    ALERT "Invalid domain" 3
+    return
+  else
+    SET_CONFIG_OPTION CONNECTION_CHECK_DOMAIN "$sanitized"
+    update_menu_labels "force"
+    ALERT "Complete!" 2 false
+  fi
+}
+
+render_screensaver_timeout_menu() {
+  config_screensaver_timeout="$(GET_CONFIG_OPTION SCREENSAVER_TIMEOUT)m"
+  resp=""
+  case "$config_screensaver_timeout" in
+    "2")
+      resp="$(LIST_PICKER "Timeout" "[2m] 3m 4m 5m 10m 15m 30m" "[2m]")"
+      ;;
+    "3")
+      resp="$(LIST_PICKER "Timeout" "2m [3m] 4m 5m 10m 15m 30m" "[3m]")"
+      ;;
+    "4")
+      resp="$(LIST_PICKER "Timeout" "2m 3m [4m] 5m 10m 15m 30m" "[4m]")"
+      ;;
+    "5")
+      resp="$(LIST_PICKER "Timeout" "2m 3m 4m [5m] 10m 15m 30m" "[5m]")"
+      ;;
+    "10")
+      resp="$(LIST_PICKER "Timeout" "2m 3m 4m 5m [10m] 15m 30m" "[10m]")"
+      ;;
+    "15")
+      resp="$(LIST_PICKER "Timeout" "2m 3m 4m 5m 10m [15m] 30m" "[15m]")"
+      ;;
+    "30")
+      resp="$(LIST_PICKER "Timeout" "2m 3m 4m 5m 10m 15m [30m]" "[30m]")"
+      ;;
+     *)
+      resp="$(LIST_PICKER "Timeout" "2m 3m 4m [5m] 10m 15m 30m" "[5m]")"
+      ;;
+  esac
+  if [ "$resp" != "← Back" ]; then
+    set_screensaver_timeout "$resp"
+  fi
+}
+
+render_autoexec_timeout_menu() {
+  config_autoexec_timeout="$(GET_CONFIG_OPTION AUTOEXEC_TIMEOUT)s"
+  resp=""
+  case "$config_autoexec_timeout" in
+    "2s")
+      resp="$(LIST_PICKER "Timeout" "[2s] 3s 4s 5s 10s 15s 30s 60s" "[2s]")"
+      ;;
+    "3s")
+      resp="$(LIST_PICKER "Timeout" "2s [3s] 4s 5s 10s 15s 30s 60s" "[3s]")"
+      ;;
+    "4s")
+      resp="$(LIST_PICKER "Timeout" "2s 3s [4s] 5s 10s 15s 30s 60s" "[4s]")"
+      ;;
+    "5s")
+      resp="$(LIST_PICKER "Timeout" "2s 3s 4s [5s] 10s 15s 30s 60s" "[5s]")"
+      ;;
+    "10s")
+      resp="$(LIST_PICKER "Timeout" "2s 3s 4s 5s [10s] 15s 30s 60s" "[10s]")"
+      ;;
+    "15s")
+      resp="$(LIST_PICKER "Timeout" "2s 3s 4s 5s 10s [15s] 30s 60s" "[15s]")"
+      ;;
+    "30s")
+      resp="$(LIST_PICKER "Timeout" "2s 3s 4s 5s 10s 15s [30s] 60s" "[30s]")"
+      ;;
+    "60s")
+      resp="$(LIST_PICKER "Timeout" "2s 3s 4s 5s 10s 15s 30s [60s]" "[60s]")"
+      ;;
+     *)
+      resp="$(LIST_PICKER "Timeout" "2s [3s] 4s 5s 10s 15s 30s 60s" "[3s]")"
+      ;;
+  esac
+  if [ "$resp" != "← Back" ]; then
+    set_autoexec_timeout "$resp"
+  fi
+}
+
+render_autoexec_timeout_flash_menu() {
+  config_autoexec_timeout_flash="$(GET_CONFIG_OPTION AUTOEXEC_TIMEOUT_FLASH)"
+  if [ "$config_autoexec_timeout_flash" = "TRUE" ]; then
+    resp="$(OPTION_DIALOG "Flash Screen on countdown?" "FALSE" "[TRUE]")"
+  else
+    resp="$(OPTION_DIALOG "Flash Screen on countdown?" "[FALSE]" "TRUE")"
+  fi
+  set_autoexec_timeout_flash "$resp"
+}
+
+# this menu shows system default (boot aka arming/attackmode agnostic) ssh service
+update_ssh_menu() {
+  config_ssh_enabled="$(GET_CONFIG_OPTION SSH_ENABLED)"
+  if [[ $config_ssh_enabled == "TRUE" ]]; then
+      menu_ssh_server=("[Enabled]:enable_system_ssh" "Disable:disable_system_ssh" "← Back")
+  else
+      menu_ssh_server=("Enable:enable_system_ssh" "[Disabled]:disable_system_ssh" "← Back")
+  fi
+}
+update_current_ssh_menu() {
+  current_ssh_status=$(/etc/init.d/sshd status 2>/dev/null)
+  if [[ $current_ssh_status == "running" ]]; then
+    menu_current_ssh=("[Start SSH]:start_ssh" "Stop SSH:stop_ssh" "← Back")
+  else
+    menu_current_ssh=("Start SSH:start_ssh" "[Stop SSH]:stop_ssh" "← Back")
+  fi
+}
+
+update_current_ntp_menu() {
+  current_ntp_status="$(/etc/init.d/sysntpd status 2>/dev/null)"
+  if [[ $current_ntp_status == "running" ]]; then
+    menu_current_ntp=("[Start NTP]:start_ntp" "Stop NTP:stop_ntp" "Sync:sync_ntp" "← Back")
+  else
+    menu_current_ntp=("Start NTP:start_ntp" "[Stop NTP]:stop_ntp" "Sync:sync_ntp" "← Back")
+  fi
+}
+
+update_current_c2_menu() {
+  current_cc_client_status="$(/etc/init.d/cc-client status 2>/dev/null)"
+  if [[ $current_cc_client_status == "running" ]]; then
+    menu_current_c2=("[Start Client]:start_c2" "Stop Client:stop_c2" "← Back")
+  else
+    menu_current_c2=("Start Client:start_c2" "[Stop Client]:stop_c2" "← Back")
+  fi
+}
+
+update_boot_mac_menu() {
+  current_boot_mac="$(GET_CONFIG_OPTION MAC_ADDRESS)"
+  if [[ $current_boot_mac == "DEFAULT" ]]; then
+    menu_boot_mac=("[Default]:set_default_boot_mac" "Static:set_static_boot_mac" "Random:set_random_boot_mac" "← Back" )
+  elif [[ $current_boot_mac == "RANDOM" ]]; then
+    menu_boot_mac=("Default:set_default_boot_mac" "[Static]:set_static_boot_mac" "[Random]:set_random_boot_mac" "← Back" )
+  else
+    menu_boot_mac=("[Default]:set_default_boot_mac" "[Static]:set_static_boot_mac" "Random:set_random_boot_mac" "← Back" )
+  fi
+}
+
+update_protected_arming_menu() {
+  config_protected_arming="$(GET_CONFIG_OPTION PROTECTED_ARMING_MODE)"
+  if [[ $config_protected_arming == "TRUE" ]]; then
+    menu_protected_arming=("[Enabled]:set_protected_arming_enabled" "Disable:set_protected_arming_disabled" "← Back")
+  else
+    menu_protected_arming=("Enable:set_protected_arming_enabled" "[Disabled]:set_protected_arming_disabled" "← Back")
+  fi
+}
+
+# this menu shows arming mode ssh service
+update_armingmode_ssh_menu() {
+  config_armingmode_ssh="$(GET_CONFIG_OPTION ARMING_MODE_SSH)"
+  if [[ $config_armingmode_ssh == "TRUE" ]]; then
+    menu_armingmode_ssh_server=("[Enabled]:enable_armingmode_ssh" "Disable:disable_armingmode_ssh" "← Back")
+  else
+    menu_armingmode_ssh_server=("Enable:enable_armingmode_ssh" "[Disabled]:disable_armingmode_ssh" "← Back")
+  fi
+}
+
+update_ntp_menu() {
+  config_ntp_enabled="$(GET_CONFIG_OPTION NTP_ENABLED)"
+  if [[ $config_ntp_enabled == "TRUE" ]]; then
+    menu_ntp=("[Enabled]:set_ntp_enabled" "Disable:set_ntp_disabled" "← Back")
+  else
+    menu_ntp=("Enable:set_ntp_enabled" "[Disabled]:set_ntp_disabled" "← Back")
+  fi
+}
+
+update_cloud_c2_menu() {
+  config_cloud_c2_enabled="$(GET_CONFIG_OPTION C2_ENABLED)"
+  if [[ $config_cloud_c2_enabled == "TRUE" ]]; then
+    menu_cloud_c2=("[Enabled]:set_c2_enabled" "Disable:set_c2_disabled" "De-register:deregister_c2" "← Back")
+  else
+    menu_cloud_c2=("Enable:set_c2_enabled" "[Disabled]:set_c2_disabled" "De-register:deregister_c2" "← Back")
+  fi
+}
+
+update_dhcp_menu() {
+  netmode=$(cat /tmp/NETMODE 2>/dev/null || echo "OFF")
+  case "$netmode" in
+    AUTO)
+      menu_network_mode=("[AUTO]:netmode_auto" "DHCP Server:netmode_dhcp_server" "DHCP Client:netmode_dhcp_client" "STATIC:netmode_static" "OFF:netmode_off" "← Back")
+      ;;
+    DHCP_SERVER)
+      menu_network_mode=("AUTO:netmode_auto" "[DHCP Server]:netmode_dhcp_server" "DHCP Client:netmode_dhcp_client" "STATIC:netmode_static" "OFF:netmode_off" "← Back")
+      ;;
+    DHCP_CLIENT)
+      menu_network_mode=("AUTO:netmode_auto" "DHCP Server:netmode_dhcp_server" "[DHCP Client]:netmode_dhcp_client" "STATIC:netmode_static" "OFF:netmode_off" "← Back")
+      ;;
+    STATIC)
+      menu_network_mode=("AUTO:netmode_auto" "DHCP Server:netmode_dhcp_server" "DHCP Client:netmode_dhcp_client" "[STATIC]:netmode_static" "OFF:netmode_off" "← Back")
+      ;;
+    OFF)
+      menu_network_mode=("AUTO:netmode_auto" "DHCP Server:netmode_dhcp_server" "DHCP Client:netmode_dhcp_client" "STATIC:netmode_static" "[OFF]:netmode_off" "← Back")
+      ;;
+  esac
+}
+
+update_boot_netmode_menu() {
+  netmode="$(GET_CONFIG_OPTION BOOT_NETMODE)"
+  case "$netmode" in
+    DHCP_SERVER)
+      menu_boot_network_mode=("OFF:boot_netmode_off" "[DHCP Server]:boot_netmode_dhcp_server" "DHCP Client:boot_netmode_dhcp_client" "STATIC:boot_netmode_static" "← Back")
+      ;;
+    DHCP_CLIENT)
+      menu_boot_network_mode=("OFF:boot_netmode_off" "DHCP Server:boot_netmode_dhcp_server" "[DHCP Client]:boot_netmode_dhcp_client" "STATIC:boot_netmode_static" "← Back")
+      ;;
+    STATIC)
+      menu_boot_network_mode=("OFF:boot_netmode_off" "DHCP Server:boot_netmode_dhcp_server" "DHCP Client:boot_netmode_dhcp_client" "[STATIC]:boot_netmode_static" "← Back")
+      ;;
+    OFF)
+      menu_boot_network_mode=("[OFF]:boot_netmode_off" "DHCP Server:boot_netmode_dhcp_server" "DHCP Client:boot_netmode_dhcp_client" "STATIC:boot_netmode_static" "← Back")
+      ;;
+  esac
+}
+
+update_armingmode_network_mode_menu() {
+  netmode="$(GET_CONFIG_OPTION ARMING_MODE_NETMODE)"
+  case "$netmode" in
+    DHCP_SERVER)
+      menu_armingmode_network_mode=("[DHCP Server]:armingmode_netmode_dhcp_server" "DHCP Client:armingmode_netmode_dhcp_client" "STATIC:armingmode_netmode_static" "OFF:armingmode_netmode_off" "← Back")
+      ;;
+    DHCP_CLIENT)
+      menu_armingmode_network_mode=("DHCP Server:armingmode_netmode_dhcp_server" "[DHCP Client]:armingmode_netmode_dhcp_client" "STATIC:armingmode_netmode_static" "OFF:armingmode_netmode_off" "← Back")
+      ;;
+    STATIC)
+      menu_armingmode_network_mode=("DHCP Server:armingmode_netmode_dhcp_server" "DHCP Client:armingmode_netmode_dhcp_client" "[STATIC]:armingmode_netmode_static" "OFF:armingmode_netmode_off" "← Back")
+      ;;
+    OFF)
+      menu_armingmode_network_mode=("DHCP Server:armingmode_netmode_dhcp_server" "DHCP Client:armingmode_netmode_dhcp_client" "STATIC:armingmode_netmode_static" "[OFF]:armingmode_netmode_off" "← Back")
+      ;;
+  esac
+}
+
+
+update_backlight_menu() {
+  config_backlight="$(GET_CONFIG_OPTION BACKLIGHT)"
+  if [[ $config_backlight == "TRUE" ]]; then
+    menu_backlight=("[Enabled]:enable_backlight" "Disable:disable_backlight" "← Back")
+  else
+    menu_backlight=("Enable:enable_backlight" "[Disabled]:disable_backlight" "← Back")
+  fi
+}
+
+update_autoexec_menu() {
+  config_autoexec="$(GET_CONFIG_OPTION AUTOEXEC)"
+  if [[ $config_autoexec == "TRUE" ]]; then
+    menu_autoexec=("[Enabled]:enable_autoexec" "Disable:disable_autoexec" "← Back")
+  else
+    menu_autoexec=("Enable:enable_autoexec" "[Disabled]:disable_autoexec" "← Back")
+  fi
+}
+
+update_about_system_menu() {
+  local power_state uptime firmware_version system_time system_date current_led
+  power_state=$(/usr/bin/BATTERY 2>/dev/null)
+  uptime=$(uptime| awk '{print $3}')
+  firmware_version=$(cat /root/VERSION 2>/dev/null || echo "1.0.0")
+  system_time=$(/bin/date "+%H:%M:%S")
+  system_date=$(/bin/date "+%Y-%m-%d")
+  current_led=$(/usr/bin/GET_LED)
+  if [ "$power_state" = "Charging" ]; then
+    power_state="Y"
+  else
+    power_state="N"
+  fi
+
+  menu_about_system=(
+    "Version: $firmware_version"
+    "Charging: $power_state"
+    "Date: $system_date"
+    "Time: $system_time"
+    "Uptime: $uptime"
+    "LED: $current_led"
+    "← Back"
+  )
+}
+
+update_about_networking_menu() {
+  local IFACE current_ip current_subnet current_gateway current_total_rx current_total_tx current_ssh_connections netmode leases
+  IFACE="eth0"
+  current_ip=$(ifconfig $IFACE | grep 'inet addr:' | awk '{print $2}' | cut -d: -f2)
+  current_subnet="/$(ip -4 addr show $IFACE | awk '/inet / {print $2}' | cut -d'/' -f2)"
+  current_gateway=$(ip route | awk '/default/ {print $3}')
+  current_total_rx="$(cat /sys/class/net/$IFACE/statistics/rx_bytes)"
+  current_total_tx="$(cat /sys/class/net/$IFACE/statistics/tx_bytes)"
+  current_ssh_connections=$(netstat -tn | grep ':22' | grep 'ESTABLISHED' | wc -l)
+  netmode="$(cat /tmp/NETMODE)"
+  leases="$(cat /var/dhcp.leases| wc -l)"
+  link_state="$(ip link show eth0 | awk '/state/ {print $9}')"
+  hostname="$(uci get system.@system[0].hostname)"
+  menu_about_networking=(
+    "Mode:$netmode"
+    "IP:$current_ip"
+    "Link: $link_state"
+    "Hostname: $hostname"
+    "Subnet:$current_subnet"
+    "GW:$current_gateway"
+    "RX: $current_total_rx"
+    "TX: $current_total_tx"
+    "Leases: $leases"
+    "Shells: $current_ssh_connections"
+    "← Back"
+  )
+}
+
+update_about_services_menu() {
+  local cloud_c2_status cloud_c2_boot_status service_mode ssh_status ssh_on_boot ssh_arming_mode
+  cloud_c2_status=$([ -f /etc/device.config ] && echo "Y" || echo "N")
+  cloud_c2_boot_status=$([ "$config_c2_enabled" = "TRUE" ] && echo "Y" || echo "N")
+  ssh_status=$([ "$(/etc/init.d/sshd status)" = "running" ] && echo "Y" || echo "N" )
+  ssh_on_boot=$([ "$config_ssh_enabled" = "TRUE" ] && echo "Y" || echo "N")
+  ssh_arming_mode=$([ "$config_armingmode_ssh" = "TRUE" ] && echo "Y" || echo "N")
+  ntp_status=$([ "$(/etc/init.d/sysntpd status)" = "running" ] && echo "Y" || echo "N" )
+  ntp_on_boot=$([ "$config_ntp_enabled" = "TRUE" ] && echo "Y" || echo "N")
+  if [ "$SSH_CONTEXT" = "true" ]; then
+    service_mode="ssh"
+  else
+    service_mode="init"
+  fi
+  menu_about_services=(
+    "SSH: $ssh_status"
+    "SSH on Boot: $ssh_on_boot"
+    "Arming SSH: $ssh_arming_mode"
+    "NTP: $ntp_status"
+    "NTP on Boot: $ntp_on_boot"
+    "Cloud C²: $cloud_c2_status"
+    "C² on Boot: $cloud_c2_boot_status"
+    "Shark: $service_mode"
+    "← Back"
+  )
+}
+
+update_about_storage_menu() {
+  local free_disk payload_count opkg_count loot_count
+  free_disk=$(df -h / | awk 'NR==2 {print $4}')
+  payload_count=$(tree /root/library/ | grep payload.txt | wc -l)
+  opkg_count=$(opkg list-installed | wc -l)
+  loot_count=$(tree /root/loot/ | grep files | awk '{print $3}')
+  menu_about_storage=(
+    "Free: $free_disk"
+    "Payloads: $payload_count"
+    "Loot: $loot_count"
+    "Packages: $opkg_count"
+    "← Back"
+  )
+}
+
+update_default_payload_menu() {
+  payload_path="/root/payload"
+  payload="${1:-$(find "${payload_path}"/payload* 2>/dev/null | tail -n1)}"
+  case $(basename "${payload}") in
+    "payload" | "payload.sh" | "payload.txt")
+      menu_default_payload=( "Run Payload:launch_armed_payload" "Remove Payload:remove_armed_payload" "← Back" )
+      ;;
+    *)
+      menu_default_payload=( "No Armed Payload:go_back" "← Back" )
+      ;;
+  esac
+}
+
+update_screensaver_menu() {
+  config_ss="$(GET_CONFIG_OPTION SCREENSAVER)"
+  screensavers=()
+  for path in /usr/lib/screensavers/*/; do
+      [ -d "$path" ] && screensavers+=("${path%/}")  # Remove trailing slash
+  done
+  for i in "${!screensavers[@]}"; do
+      screensavers[$i]="${screensavers[$i]##*/}"
+  done
+  menu_screensaver_style=()
+  for ss in "${screensavers[@]}"; do
+      if [ "$ss" = "$config_ss" ]; then
+          menu_screensaver_style+=("[${ss^}]:set_ss")
+      else
+          menu_screensaver_style+=("${ss^}:set_ss")
+      fi
+  done
+  menu_screensaver_style+=("← Back")
+}
+
+update_theme_menu() {
+  if [[ $config_theme == "LIGHT" ]]; then
+    menu_theme=("[LIGHT]:set_light_mode" "DARK:set_dark_mode" "← Back")
+  else
+    menu_theme=("LIGHT:set_light_mode" "[DARK]:set_dark_mode" "← Back")
+  fi
+}
+
+update_wait_for_link_menu() {
+  config_wait_for_link="$(GET_CONFIG_OPTION WAIT_FOR_LINK)"
+  if [[ $config_wait_for_link == "TRUE" ]]; then
+    menu_wait_for_link=("[Enabled]:enable_wait_for_link" "Disable:disable_wait_for_link" "← Back")
+  else
+    menu_wait_for_link=("Enable:enable_wait_for_link" "[Disabled]:disable_wait_for_link" "← Back")
+  fi
+}
+
+update_menu_labels() {
+ # if [ "$menu_data_dirty" = "true" ] || [ -n "$1" ]; then
+    menu_data_dirty=false
+
+    if [ $current_menu = "menu_network_mode" ] || [ "$1" = "full" ]; then
+      update_dhcp_menu
+    fi
+    if [ $current_menu = "menu_default_payload" ] || [ "$1" = "full" ]; then
+      update_default_payload_menu
+    fi
+    if [ $current_menu = "menu_boot_network_mode" ] || [ "$1" = "full" ]; then
+      update_boot_netmode_menu
+    fi
+    if [ $current_menu = "menu_armingmode_network_mode" ] || [ "$1" = "full" ]; then
+      update_armingmode_network_mode_menu
+    fi
+    if [ $current_menu = "menu_wait_for_link" ] || [ "$1" = "full" ]; then
+      update_wait_for_link_menu
+    fi
+    if [ $current_menu = "menu_autoexec" ] || [ "$1" = "full" ]; then
+      update_autoexec_menu
+    fi
+    if [ $current_menu = "menu_ssh_server" ] || [ "$1" = "full" ]; then
+      update_ssh_menu
+    fi
+    if [ $current_menu = "menu_armingmode_ssh_server" ] || [ "$1" = "full" ]; then
+      update_armingmode_ssh_menu
+    fi
+    if [ $current_menu = "menu_ntp" ] || [ "$1" = "full" ]; then
+      update_ntp_menu
+    fi
+    if [ $current_menu = "menu_backlight" ] || [ "$1" = "full" ]; then
+      update_backlight_menu
+    fi
+    if [[ $current_menu == "menu_current_ssh" ]] || [[ "$1" == "full" ]]; then
+      update_current_ssh_menu
+    fi
+    if [[ $current_menu == "menu_current_ntp" ]] || [[ "$1" == "full" ]]; then
+      update_current_ntp_menu
+    fi
+    if [[ $current_menu == "menu_current_c2" ]] || [[ "$1" == "full" ]]; then
+      update_current_c2_menu
+    fi
+    if [[ $current_menu == "menu_boot_mac" ]] || [[ "$1" == "full" ]]; then
+      update_boot_mac_menu
+    fi
+    if [[ $current_menu == "menu_about_system" ]] || [[ "$1" == "full" ]]; then
+      update_about_system_menu
+    fi
+    if [[ $current_menu == "menu_about_networking" ]] || [[ "$1" == "full" ]]; then
+      update_about_networking_menu
+    fi
+    if [[ $current_menu == "menu_about_storage" ]] || [[ "$1" == "full" ]]; then
+      update_about_storage_menu
+    fi
+    if [[ $current_menu == "menu_about_services" ]] || [[ "$1" == "full" ]]; then
+      update_about_services_menu
+    fi
+    if [[ $current_menu == "menu_cloud_c2" ]] || [[ "$1" == "full" ]]; then
+      update_cloud_c2_menu
+    fi
+
+    if [[ $current_menu == "menu_protected_arming" ]] || [[ "$1" == "full" ]]; then
+      update_protected_arming_menu
+    fi
+
+    if [ $current_menu = "menu_theme" ] || [ "$1" = "full" ]; then
+      update_theme_menu
+    fi
+    if [ $current_menu = "menu_screensaver_style" ] || [ "$1" = "full" ]; then
+      update_screensaver_menu
+    fi
+#  fi
+}
+
+format_item_text() {
+  local item="$1"
+  local item_length=${#item}
+  local item_centered
+  local total_spaces
+  local left_spaces
+  local right_spaces
+
+  if ((item_length > 16)); then
+    item_centered="$item"
+  else
+    total_spaces=$((16 - item_length))
+    left_spaces=$((total_spaces / 2))
+    right_spaces=$((total_spaces - left_spaces))
+    if ((total_spaces % 2 != 0)); then
+      left_spaces=$((left_spaces + 1))
+      right_spaces=$((right_spaces - 1))
+    fi
+    item_centered="$(printf '%*s%s%*s' "$left_spaces" '' "$item" "$right_spaces" '')"
+  fi
+  printf "$item_centered"
+}
+
+redraw_menu() {
+  render_menu "$current_menu[@]"
+}
+
+menu_data_current_menu=""
+render_menu() {
+  if [ "$menu_data_current_menu" != "$current_menu" ]; then
+    update_menu_labels
+  fi
+  menu_data_current_menu=$current_menu
+#  if [ ${#menu_stack[@]} -gt 1 ]; then
+#    update_menu_labels
+#  else
+#    menu_data_dirty=true
+#  fi
+
+  local menu_items=("${!1}")
+
+  local top_indicator="."
+  local bottom_indicator="."
+  if [[ $visible_start -gt 0 ]]; then
+    # top_indicator="               ↑"
+    top_indicator="↑"
+  fi
+  if [[ $visible_end -lt $((${#menu_items[@]} - 1)) ]]; then
+    # bottom_indicator="               ↓"
+    bottom_indicator="↓"
+  fi
+
+  out=""
+  for ((i = visible_start; i <= visible_end; i++)); do
+    if [[ $i -lt ${#menu_items[@]} ]]; then
+      if [[ $current_menu != "menu_about_"* ]]; then 
+        local item="${menu_items[$i]%%:*}"  # Strip function/submenu part for display
+      else
+        local item="${menu_items[$i]}"
+      fi
+      if [[ $i -eq $selected_index ]]; then
+        item_centered="$(format_item_text "$item")"
+        out+="\n▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄"
+        out+="\n\033[7m$item_centered\033[0m"
+        out+="\n▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀"
+      else
+        item_centered="$(format_item_text "$item")"
+        out+="\n"
+        out+="\n$item_centered"
+        out+="\n"
+      fi
+    fi
+  done
+
+  clear_screen
+  screen_write "$top_indicator$out\n$bottom_indicator"
+}
+
+update_visible_window() {
+  if [[ $selected_index -lt $visible_start ]]; then
+    visible_start=$selected_index
+    visible_end=$((visible_start + rows_visible))
+  elif [[ $selected_index -gt $visible_end ]]; then
+    visible_end=$selected_index
+    visible_start=$((visible_end - rows_visible))
+  fi
+}
+
+handle_input() {
+  local menu_items=("${!1}")
+  case "$2" in
+    up)
+      ((selected_index--))
+      if [[ $selected_index -lt 0 ]]; then
+        selected_index=$((${#menu_items[@]} - 1))
+      fi
+      update_visible_window
+      ;;
+    down)
+      ((selected_index++))
+      if [[ $selected_index -ge ${#menu_items[@]} ]]; then
+        selected_index=0
+      fi
+      update_visible_window
+      ;;
+    select)
+      handle_selection "$1"
+      ;;
+  esac
+}
+
+shark_animation_counter=0
+shark_animation() {
+  ((shark_animation_counter++))
+  if [[ $shark_animation_counter -gt 5 ]]; then
+    play_shark_animation
+    shark_animation_counter=0
+  fi
+}
+
+handle_selection() {
+  local menu_items=("${!1}")
+  local selected_option="${menu_items[$selected_index]}"
+  local label="${selected_option%%:*}"  # Strip function/submenu part
+  local action="${selected_option#*:}"  # Extract function/submenu part
+
+  if [[ $label == "Version" ]]; then
+    shark_animation
+  fi
+  if [[ $label == "← Back" ]] || [[ $label == "Back" ]] || [[ $label == "Main Menu" ]]; then
+    pop_menu
+  elif [[ "$(declare -p "$action" 2>/dev/null)" =~ "declare -a" ]]; then
+    push_menu "$action"
+  elif [[ "$(type -t "$action" 2>/dev/null)" == "function" ]]; then
+    $action # Call the associated function
+  fi
+}
+
+push_menu() {
+  menu_stack+=("$current_menu")
+  current_menu="$1"
+  selected_index=0
+  visible_start=0
+  visible_end=$rows_visible
+}
+
+pop_menu() {
+  if [[ ${#menu_stack[@]} -gt 0 ]]; then
+    current_menu="${menu_stack[-1]}"
+    menu_stack=("${menu_stack[@]:0:${#menu_stack[@]}-1}")
+    selected_index=0
+    visible_start=0
+    visible_end=$rows_visible
+  fi
+}
+
+go_back() {
+  pop_menu
+}
+
+start_c2() {
+  resp="$(CONFIRMATION_DIALOG "Start Cloud C² Client?" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    C2CONNECT
+    ALERT "C² Started!" 1 false
+  fi
+}
+
+stop_c2() {
+  resp="$(CONFIRMATION_DIALOG "Stop Cloud C² Client?" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    C2DISCONNECT
+    ALERT "C² Stopped!" 1 false
+  fi
+}
+
+set_c2_enabled() {
+  resp="$(CONFIRMATION_DIALOG "Enable Cloud C² on boot?" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    SET_CONFIG_OPTION C2_ENABLED TRUE
+    update_menu_labels "force"
+    ALERT "C² Enabled At Boot!" 1 false
+  fi
+}
+
+set_c2_disabled() {
+  SET_CONFIG_OPTION C2_ENABLED FALSE
+  update_menu_labels "force"
+  ALERT "C² Disabled At Boot!" 1 false
+}
+
+deregister_c2() {
+  resp="$(CONFIRMATION_DIALOG "Deregister Cloud C²?" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    rm /etc/device.config
+    ALERT "C² Deregistered!" 1 false
+    set_c2_disabled
+  fi
+}
+
+set_light_mode() {
+  SET_CONFIG_OPTION THEME LIGHT
+  update_theme "LIGHT"
+  update_menu_labels "force"
+  ALERT "Light Mode!" 1 false
+  use_configured_theme
+}
+
+set_dark_mode() {
+  SET_CONFIG_OPTION THEME DARK
+  update_theme "DARK"
+  update_menu_labels "force"
+  ALERT "Dark Mode!" 1 false
+  use_configured_theme
+}
+
+reset_to_factory_settings() {
+  RESET_ALL_SETTINGS
+  reboot &
+  BLOCKING_ALERT "Rebooting..." -1 false
+}
+
+boot_netmode_static() {
+  resp="$(CONFIRMATION_DIALOG "Use this NETMODE on every boot?" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    SET_CONFIG_OPTION BOOT_NETMODE STATIC
+    update_menu_labels "force"
+    ALERT "Boot NETMODE updated!" 1 false
+  fi
+}
+
+boot_netmode_off() {
+  SET_CONFIG_OPTION BOOT_NETMODE OFF
+  update_menu_labels "force"
+  ALERT "Boot NETMODE updated!" 1 false
+}
+
+boot_netmode_dhcp_server() {
+  resp="$(CONFIRMATION_DIALOG "Use this NETMODE on every boot" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    SET_CONFIG_OPTION BOOT_NETMODE DHCP_SERVER
+    update_menu_labels "force"
+    ALERT "Boot NETMODE updated!" 1 false
+  fi
+}
+
+boot_netmode_dhcp_client() {
+  resp="$(CONFIRMATION_DIALOG "Use this NETMODE on every boot" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    SET_CONFIG_OPTION BOOT_NETMODE DHCP_CLIENT
+    update_menu_labels "force"
+    ALERT "Boot NETMODE updated!" 1 false
+  fi
+}
+
+armingmode_netmode_static() {
+  SET_CONFIG_OPTION ARMING_MODE_NETMODE STATIC
+  update_menu_labels "force"
+  ALERT "Arming NETMODE updated!" 1 false
+}
+
+armingmode_netmode_off() {
+  resp="$(CONFIRMATION_DIALOG " Disable network in ARMING MODE?" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    SET_CONFIG_OPTION ARMING_MODE_NETMODE OFF
+    update_menu_labels "force"
+    ALERT "Arming NETMODE updated!" 1 false
+  fi
+}
+
+armingmode_netmode_dhcp_server() {
+  SET_CONFIG_OPTION ARMING_MODE_NETMODE DHCP_SERVER
+  update_menu_labels "force"
+  ALERT "Arming NETMODE updated!" 1 false
+}
+
+armingmode_netmode_dhcp_client() {
+  SET_CONFIG_OPTION ARMING_MODE_NETMODE DHCP_CLIENT
+  update_menu_labels "force"
+  ALERT "Arming NETMODE updated!" 1 false
+}
+
+netmode_static() {
+  CREATE_SPINNER "Configuring Interface"
+  NETMODE STATIC
+  update_menu_labels "force"
+  STOP_SPINNER
+}
+
+netmode_off() {
+  CREATE_SPINNER "Disabling Interface..."
+  NETMODE OFF
+  update_menu_labels "force"
+  STOP_SPINNER
+  BLOCKING_ALERT "Complete!" 1 false
+}
+
+netmode_auto() {
+  NETMODE AUTO
+  update_menu_labels "force"
+  BLOCKING_ALERT "Complete!" 1 false
+}
+
+netmode_dhcp_server() {
+  CREATE_SPINNER "Starting DHCP Server"
+  NETMODE DHCP_SERVER
+  update_menu_labels "force"
+  STOP_SPINNER
+  BLOCKING_ALERT "Complete!" 1 false
+}
+
+netmode_dhcp_client() {
+  resp="$(OPTION_DIALOG "Wait for and display IP?" " No " " Yes ")"
+  CREATE_SPINNER "Starting DHCP Client"
+  NETMODE DHCP_CLIENT
+  update_menu_labels "force"
+  STOP_SPINNER
+  BLOCKING_ALERT "Complete!" 1 false
+  if [ "$resp" = " Yes " ]; then
+    newip="$(WAIT_FOR_IP true)"
+    if [ "$newip" = "Cancelled" ]; then
+      ALERT "Cancelled" 2 false
+    else
+      ALERT "$newip" -1 false
+    fi
+  fi
+}
+
+use_configured_backlight() {
+  if [ "$config_backlight" = "FALSE" ]; then
+    DISABLE_BACKLIGHT
+  else
+    ENABLE_BACKLIGHT
+  fi
+}
+
+enable_wait_for_link() {
+  resp="$(CONFIRMATION_DIALOG "Enable WAIT_FOR_LINK starting payloads?" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    SET_CONFIG_OPTION WAIT_FOR_LINK TRUE
+    update_menu_labels "force"
+    ALERT "WAIT_FOR_LINK Enabled!" 2 false
+  fi
+}
+
+disable_wait_for_link() {
+    SET_CONFIG_OPTION WAIT_FOR_LINK FALSE
+    update_menu_labels "force"
+    ALERT "WAIT_FOR_LINK Disabled!" 2 false
+}
+
+enable_backlight() {
+  ENABLE_BACKLIGHT
+  SET_CONFIG_OPTION BACKLIGHT TRUE
+  config_backlight="TRUE"
+  update_menu_labels "force"
+  ALERT "Backlight On!" 2 false
+}
+
+disable_backlight() {
+  DISABLE_BACKLIGHT
+  SET_CONFIG_OPTION BACKLIGHT FALSE
+  config_backlight="FALSE"
+  update_menu_labels "force"
+  ALERT "Backlight Off!" 2 false
+}
+
+enable_autoexec() {
+  SET_CONFIG_OPTION AUTOEXEC TRUE
+  config_autoexec="TRUE"
+  update_menu_labels "force"
+  ALERT "AUTOEXEC Enabled!" 2 false
+}
+
+disable_autoexec() {
+  SET_CONFIG_OPTION AUTOEXEC FALSE
+  config_autoexec="FALSE"
+  update_menu_labels "force"
+  ALERT "AUTOEXEC Disabled!" 2 false
+}
+
+set_random_boot_mac() {
+  SET_CONFIG_OPTION MAC_ADDRESS "RANDOM"
+  update_menu_labels "force"
+  ALERT "Set MAC Random!" 2 false
+}
+
+set_default_boot_mac() {
+  SET_CONFIG_OPTION MAC_ADDRESS "DEFAULT"
+  update_menu_labels "force"
+  ALERT "Set MAC Default!" 2 false
+}
+
+set_static_boot_mac() {
+  resp="$(SET_MAC_MENU false)"
+  if [ "$resp" != "← Back" ];then
+    SET_CONFIG_OPTION MAC_ADDRESS "$resp"
+    update_menu_labels "force"
+    ALERT "Set MAC Static!" 2 false
+  fi
+}
+
+# Enable SSH at the init.d/system level regardless of attack/arming mode
+enable_system_ssh() {
+  resp="$(CONFIRMATION_DIALOG "Enable SSH on every boot?" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    CREATE_SPINNER "Enabling SSH..."
+    ENABLE_SSH
+    config_ssh_enabled="TRUE"
+    SET_CONFIG_OPTION SSH_ENABLED TRUE
+    update_menu_labels "force"
+    STOP_SPINNER
+    ALERT "System SSH Enabled!" 2 false
+  fi
+}
+
+# Disable SSH at the init.d/system level regardless of attack/arming mode
+disable_system_ssh() {
+  CREATE_SPINNER "Disabling SSH..."
+  DISABLE_SSH
+  config_ssh_enabled="FALSE"
+  SET_CONFIG_OPTION SSH_ENABLED FALSE
+  update_menu_labels "force"
+  STOP_SPINNER
+  ALERT "System SSH Disabled!" 2 false
+}
+
+# Enable SSH in ARMING MODE
+enable_armingmode_ssh() {
+  CREATE_SPINNER "Starting SSH..."
+  START_SSH
+  config_armingmode_ssh="TRUE"
+  SET_CONFIG_OPTION ARMING_MODE_SSH TRUE
+  update_menu_labels "force"
+  STOP_SPINNER
+  ALERT "ARMING MODE SSH Enabled!" 2 false
+}
+
+# Disable SSH in ARMING MODE
+disable_armingmode_ssh() {
+  resp="$(CONFIRMATION_DIALOG " Disable SSH in ARMING MODE?" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    CREATE_SPINNER "Stopping SSH..."
+    STOP_SSH
+    config_armingmode_ssh="FALSE"
+    SET_CONFIG_OPTION ARMING_MODE_SSH FALSE
+    update_menu_labels "force"
+    STOP_SPINNER
+    ALERT "ARMING MODE SSH Disabled!" 2 false
+  fi
+}
+
+start_ssh() {
+  START_SSH
+  update_menu_labels "force"
+  ALERT "SSH Started!" 2 false
+}
+
+stop_ssh() {
+  STOP_SSH
+  update_menu_labels "force"
+  ALERT "SSH Stopped!" 2 false
+}
+
+check_for_updates() {
+  current_netmode="$(cat /tmp/NETMODE)"
+  if [ "$current_netmode" = "STATIC" ] || [ "$current_netmode" = "DHCP_CLIENT" ]; then
+    resp="$(UPDATE_FIRMWARE)"
+    if [ "$resp" = "UPDATING" ]; then
+      # updating
+      exit 0
+    fi
+  else
+    resp="$(LIST_PICKER "Enter NETMODE" "DHCP_CLIENT STATIC" "DHCP_CLIENT")"
+    if [ "$resp" = "← Back" ]; then
+      return
+    fi
+    CREATE_SPINNER "Changing NETMODE"
+    NETMODE $resp
+    STOP_SPINNER
+    ALERT "Complete!" 1 false
+    resp="$(UPDATE_FIRMWARE)"
+    if [ "$resp" = "UPDATING" ]; then
+      exit 0
+    fi
+    resp="$(OPTION_DIALOG "Return to $current_netmode?" " No " " Yes ")"
+    if [ "$resp" = " Yes " ]; then
+      CREATE_SPINNER "Changing NETMODE"
+      NETMODE $current_netmode
+      STOP_SPINNER
+    fi
+  fi
+}
+
+reboot_device() {
+  reboot &
+  BLOCKING_ALERT "Rebooting..." -1 false
+}
+
+set_autoexec_timeout() {
+  SET_CONFIG_OPTION AUTOEXEC_TIMEOUT "${1%s}"
+  config_autoexec_timeout="${1%s}"
+  ALERT "Timeout Updated!" 2 false
+}
+
+set_screensaver_timeout() {
+  /etc/init.d/screensaver stop
+  SET_CONFIG_OPTION SCREENSAVER_TIMEOUT "${1%m}"
+  /etc/init.d/screensaver start
+  ALERT "Timeout Updated!" 2 false
+}
+
+set_autoexec_timeout_flash() {
+  logger -s Shark "TIMEOUT FLASH $1"
+  SET_CONFIG_OPTION AUTOEXEC_TIMEOUT_FLASH "$1"
+  config_autoexec_timeout_flash="$1"
+  ALERT "Setting Updated!" 2 false
+}
+
+start_ntp() {
+  CREATE_SPINNER "Starting NTP..."
+  /etc/init.d/sysntpd start
+  update_menu_labels "force"
+  STOP_SPINNER
+  ALERT "NTP Started" 2 false
+}
+
+stop_ntp() {
+  CREATE_SPINNER "Stopping NTP..."
+  /etc/init.d/sysntpd stop
+  update_menu_labels "force"
+  STOP_SPINNER
+  ALERT "NTP Stopped!" 2 false
+}
+
+set_ss() {
+  local label="${selected_option%%:*}"
+  /etc/init.d/screensaver stop
+  SET_CONFIG_OPTION SCREENSAVER $label
+  /etc/init.d/screensaver start
+  update_menu_labels "force"
+  ALERT "Setting Updated!" 2 false
+}
+
+set_ntp_enabled() {
+  resp="$(CONFIRMATION_DIALOG "Enable NTP on every boot?" "Yes")"
+  if [ "$resp" = "Yes" ]; then
+    CREATE_SPINNER "Enabling NTP..."
+    ENABLE_NTP
+    SET_CONFIG_OPTION NTP_ENABLED TRUE
+    config_ntp_enabled="TRUE"
+    update_menu_labels "force"
+    STOP_SPINNER
+    ALERT "NTP ENABLED" 2 false
+  fi
+}
+
+set_ntp_disabled() {
+  CREATE_SPINNER "Disabling NTP..."
+  DISABLE_NTP
+  SET_CONFIG_OPTION NTP_ENABLED FALSE
+  config_ntp_enabled="FALSE"
+  update_menu_labels "force"
+  STOP_SPINNER
+  ALERT "NTP DISABLED" 2 false
+}
+
+sync_ntp() {
+  current_netmode="$(cat /tmp/NETMODE)"
+  if [ "$current_netmode" = "STATIC" ] || [ "$current_netmode" = "DHCP_CLIENT" ]; then
+    CREATE_SPINNER "Syncing time"
+    SYNC_TIME
+    STOP_SPINNER
+  else
+    resp="$(LIST_PICKER "Enter NETMODE" "DHCP_CLIENT STATIC" "DHCP_CLIENT")"
+    if [ "$resp" = "← Back" ]; then
+      return
+    fi
+    netmode_changed=true
+    CREATE_SPINNER "Changing NETMODE"
+    NETMODE $resp
+    STOP_SPINNER
+    resp="$(WAIT_FOR_IP true)"
+    if [ "$resp" != "Cancelled" ]; then
+      CREATE_SPINNER "Syncing time"
+      SYNC_TIME
+      STOP_SPINNER
+    fi
+    resp="$(OPTION_DIALOG "Return to $current_netmode?" " No " " Yes ")"
+    if [ "$resp" = " Yes " ]; then
+      CREATE_SPINNER "Changing NETMODE"
+      NETMODE $current_netmode
+      STOP_SPINNER
+    fi
+  fi
+}
+
+launch_view_mac() {
+  m="$(ip link show eth0 | awk '/ether/ {print $2}' | sed 's/://g')"
+  ALERT "$m" -1 false
+}
+
+launch_mac_setter() {
+  SET_MAC_MENU
+}
+
+launch_mac_changer() {
+  resp="$(CONFIRMATION_DIALOG "Randomize MAC?")"
+  if [ "$resp" = "Confirm" ];then
+    RANDOMIZE_MAC
+  fi
+}
+
+launch_confirm_factory_settings() {
+  resp="$(CONFIRMATION_DIALOG "Reset All Settings?")"
+  if [[ "$resp" == "Confirm" ]]; then
+    resp=$(CONFIRMATION_DIALOG "This cannot be undone" "Ok")
+    if [[ "$resp" == "Ok" ]]; then
+      reset_to_factory_settings
+    fi
+  fi
+}
+
+launch_confirm_factory_reset() {
+  resp="$(CONFIRMATION_DIALOG "Factory Reset?")"
+  if [[ "$resp" == "Confirm" ]]; then
+    resp=$(CONFIRMATION_DIALOG "This cannot be undone" "Okay")
+    if [[ "$resp" == "Okay" ]]; then
+      FACTORY_RESET
+      resp=$?
+      if [ "$resp" -eq 2 ]; then
+        # kill framework to prevent further user input if we ever get this far
+        exit 0
+      fi
+    fi
+  fi
+}
+
+launch_get_payloads() {
+  current_netmode="$(cat /tmp/NETMODE)"
+  netmode_changed=false
+  resp="$(CONFIRMATION_DIALOG "This will replace downloaded directory" "Okay")"
+  if [ "$resp" = "Okay" ]; then
+    if [ "$current_netmode" = "STATIC" ] || [ "$current_netmode" = "DHCP_CLIENT" ]; then
+      GET_PAYLOADS
+    else
+      resp="$(LIST_PICKER "Enter NETMODE" "DHCP_CLIENT STATIC" "DHCP_CLIENT")"
+      if [ "$resp" = "← Back" ]; then
+        return
+      fi
+      netmode_changed=true
+      CREATE_SPINNER "Changing NETMODE"
+      NETMODE $resp
+      STOP_SPINNER
+      ALERT "Complete!" 1 false
+      resp=$(WAIT_FOR_IP true)
+      if [ "$resp" = "Cancelled" ];then
+        ALERT "Cancelled" 2 false
+        return
+      fi
+      GET_PAYLOADS
+      if [ $netmode_changed = "true" ]; then
+        resp="$(OPTION_DIALOG "Return to $current_netmode?" " No " " Yes ")"
+        if [ "$resp" = " Yes " ]; then
+          CREATE_SPINNER "Changing NETMODE"
+          NETMODE $current_netmode
+          STOP_SPINNER
+        fi
+      fi
+      # update_menu_labels "full"
+    fi
+  fi
+}
+
+remove_armed_payload() {
+  resp=$(CONFIRMATION_DIALOG "Remove Payload?" "Remove")
+  if [[ "$resp" == "Remove" ]]; then
+    resp=$(CONFIRMATION_DIALOG "This cannot be undone" "Ok")
+    if [[ "$resp" == "Ok" ]]; then
+      rm -rf /root/payload/*
+    fi
+  fi
+}
+
+launch_armed_payload() {
+  resp=$(CONFIRMATION_DIALOG "Run Armed Payload" " Run ")
+  if [[ "$resp" == " Run " ]]; then
+    payload="${1:-$(find "${SELECTED_ITEM_DATA}"/payload* 2>/dev/null | tail -n1)}"
+    CREATE_SPINNER "Starting Payload..."
+    if [ "$config_ssh_enabled" = "FALSE" ]; then
+      STOP_SSH
+    fi
+    sleep 0.5
+    LED OFF
+    STOP_SPINNER
+    rm /tmp/restart_payload 2&>1 >/dev/null # just to be safe
+    execute_payload
+    while [ -f "/tmp/restart_payload" ]; do
+      rm /tmp/restart_payload  2&>1 >/dev/null
+      ALERT "Restarting Payload..." 1 false
+      execute_payload
+    done
+    rm /tmp/restart_payload 2&>1 >/dev/null # just to be safe
+    ARMING_MODE_STATE # resume arming mode configuraion (netmode, ssh)
+  fi
+}
+
+launch_payload_menu() {
+  resp=$(PAYLOAD_MENU)
+  if [[ -n "$resp" && "$resp" != "Back" && "$resp" != "← Back" ]]; then
+    # ALERT "\n\n$(center_text "Starting")\n\n$(center_text "Payload")\n\n" 1 false true
+    CREATE_SPINNER "Starting Payload..."
+    if [ "$config_ssh_enabled" = "FALSE" ]; then
+      STOP_SSH
+    fi
+    sleep 0.5
+    LED OFF
+    STOP_SPINNER
+    rm /tmp/restart_payload 2&>1 >/dev/null # just to be safe
+    execute_payload "$resp"
+    while [ -f "/tmp/restart_payload" ]; do
+      rm /tmp/restart_payload 2&>1 >/dev/null # just to be safe
+      ALERT "Restarting Payload..." 1 false
+      execute_payload "$resp"
+    done
+    rm /tmp/restart_payload 2&>1 >/dev/null # just to be safe
+    ARMING_MODE_STATE # resume arming mode configuraion (netmode, ssh)
+  fi
+  redraw_menu
+}
+
+launch_loot_menu() {
+  LOOT_MENU
+  redraw_menu
+}
+
+launch_clients_menu() {
+  CLIENTS_MENU
+  redraw_menu
+}
+
+launch_shark_link() {
+  current_netmode="$(cat /tmp/NETMODE)"
+  netmode_changed=false
+  if [ "$current_netmode" = "STATIC" ] || [ "$current_netmode" = "DHCP_CLIENT" ]; then
+    SHARK_LINK
+  else
+   resp="$(LIST_PICKER "Enter NETMODE" "DHCP_CLIENT STATIC" "DHCP_CLIENT")"
+   if [ "$resp" != "← Back" ]; then
+     CREATE_SPINNER "Changing NETMODE"
+     current_netmode="$(cat /tmp/NETMODE)"
+     NETMODE $resp
+     STOP_SPINNER
+     ALERT "Complete!" 1 false
+     SHARK_LINK
+     resp="$(OPTION_DIALOG "Return to $current_netmode?" " No " " Yes ")"
+     if [ "$resp" = " Yes " ]; then
+        CREATE_SPINNER "Changing NETMODE"
+        NETMODE $current_netmode
+        STOP_SPINNER
+      fi
+   fi
+  fi
+  sleep 0.1
+  redraw_menu
+}
+
+launch_configure_shark_link() {
+  SHARK_LINK true
+}
+
+set_protected_arming_enabled() {
+  pass="$(NUMBER_PICKER "Passkey" "0-0-0-0")"
+  if [ "$pass" != "← Back" ]; then
+    passtwo="$(NUMBER_PICKER "Confirm code" "0-0-0-0")"
+    if [ "$passtwo" != "← Back" ]; then
+      if [ "$pass" = "$passtwo" ]; then
+        resp="$(CONFIRMATION_DIALOG "DO NOT LOSE THIS CODE" "I Agree")"
+        if [ "$resp" = "I Agree" ]; then
+          SET_CONFIG_OPTION PROTECTED_ARMING_MODE "TRUE"
+          SET_CONFIG_OPTION PROTECTED_ARMING_MODE_PASS $passtwo
+          update_menu_labels "force"
+          ALERT "PASS SET!" 2 false
+        fi
+      else
+        resp="$(ALERT "Codes did not match" -1 false)"
+      fi
+    fi
+  fi
+}
+
+set_protected_arming_disabled() {
+  SET_CONFIG_OPTION PROTECTED_ARMING_MODE "FALSE"
+  SET_CONFIG_OPTION PROTECTED_ARMING_MODE_PASS "0-0-0-0"
+  update_menu_labels "force"
+  ALERT "PASS DISABLED!" 2 false
+}
+
+launch_netmode_settings() {
+  CONFIGURE_NETMODE_IP_SETTINGS
+  redraw_menu
+}
+
+confirm_clear_loot() {
+  resp=$(CONFIRMATION_DIALOG "Clear Loot?")
+  if [ "$resp" = "Confirm" ];then
+    rm -rf /root/loot/
+    mkdir /root/loot
+    ALERT "Loot Cleared!" 2 false
+  fi
+}
+
+set_static_networking() {
+    resp="$(STATIC_IP_MENU)"
+    if [ "$resp" != "Back" ]; then
+      CREATE_SPINNER "NETMODE STATIC"
+      NETMODE STATIC
+      STOP_SPINNER
+    fi
+}
+
+set_led() {
+  local selected_option="${menu_items[$selected_index]}"
+  local label="${selected_option%%:*}"  # Strip function/submenu part
+  echo "$label"
+  LED $label
+  ALERT "LED: ${label}" 2 false
+  redraw_menu
+}
+
+btn_listen_for_user_input() {
+  while true; do
+    redraw_menu
+    button_input=$(/usr/sbin/button_listener)
+    if [ $? = 1 ]; then
+      logger -t SharkFramework "FRAMEWORK FAILED TO LISTEN FOR BUTTON"
+      ALERT "FATAL ERROR" "-1" true
+      exit 1
+    fi
+    case "$button_input" in
+      "switch-middle")
+        handle_input "$current_menu[@]" "select"
+        ;;
+      "switch-left")
+        handle_input "$current_menu[@]" "down"
+        ;;
+      "switch-right")
+        handle_input "$current_menu[@]" "up"
+        ;;
+      *)
+        ;;
+    esac
+  done
+}
+
+kbd_listen_for_user_input() {
+  while true; do
+    read -s -n 1 input
+    case "$input" in
+      w) EMULATE_BUTTON_PRESS "switch-right" "pressed";;
+      s) EMULATE_BUTTON_PRESS "switch-left" "pressed";;
+      d) EMULATE_BUTTON_PRESS "switch-right" "pressed";;
+      a) EMULATE_BUTTON_PRESS "switch-left" "pressed";;
+      e) EMULATE_BUTTON_PRESS "switch-middle";;
+    esac
+  done
+}
+
+ssh_kbd_help() {
+  clear_screen
+  echo -en "Running from SSH\n"
+  echo -en "Interact using keyboard or device\n"
+  echo "-----------------------------------\n"
+  echo -en "w/d - navigate up/right\n"
+  echo -en "s/a - navigate down/left \n"
+  echo -en "e   - select enter/middle\n"
+  echo "-----------------------------------\n"
+  echo -en "press key to continue on keyboard\n"
+  echo -en "WARNING: CHANGING THE NETMODE or network config remotely WILL INTURRUPT OR BREAK YOUR CONNECTION TO THIS DEVICE"
+  read -s -n 1 input
+}
+
+disk_space_check() {
+  logger -t Shark "Framework checking disk space"
+  disk="$(df / | awk 'NR==2 {print $4}')"
+  if [[ $disk -lt 1000 ]]; then
+    ALERT "[!] LOW DISK SPACE" 3
+  fi
+}
+
+PROTECTED_ARMING_MODE_PROMPT() {
+  config_protected_mode="$(GET_CONFIG_OPTION PROTECTED_ARMING_MODE)"
+  if [ "$config_protected_mode" = "TRUE" ];then
+    logger -t Shark "PROTECTED ARMING MODE"
+    configured_key="$(GET_CONFIG_OPTION PROTECTED_ARMING_MODE_PASS)"
+    while [ "$resp" != "$configured_key" ]; do
+      resp="$(NUMBER_PICKER "Passkey" "0-0-0-0")"
+    done
+    ALERT "Unlocked!" 1 false
+  else
+    logger -t Shark "UNPROTECTED ARMING MODE"
+  fi
+}
+
+ARMING_MODE_STATE() {
+  PROTECTED_ARMING_MODE_PROMPT
+  CREATE_SPINNER "$(center_text "Entering")$(center_text "ARMING MODE")"
+  # dont "hotswap" networking while being started interactively which will be remotely.
+  if [ "$RESTARTED_INTERACTIVELY" = "true" ]; then
+    STOP_SPINNER
+    return
+  fi
+  if [ "$(cat /tmp/NETMODE)" != "$(GET_CONFIG_OPTION ARMING_MODE_NETMODE)" ]; then
+    logger -t Shark "Framework Entering ARMING MODE NETMODE..."
+    # do this optimization manually here because we do not want to disallow payloads to reconfigure mid-payload using NETMODE
+    NETMODE "$(GET_CONFIG_OPTION ARMING_MODE_NETMODE)" &
+  else
+    logger -t Shark "Framework already in ARMING MODE NETMODE..."
+  fi
+  if [ "$config_armingmode_ssh" = "TRUE" ]; then
+    logger -t Shark "Framework Starting SSH for ARMING MODE..."
+    if [ "$(/etc/init.d/sshd status)" != "running" ]; then
+      START_SSH &
+    fi
+  fi
+  STOP_SPINNER
+}
+
+ARMING_MODE() {
+  ARMING_MODE_STATE
+
+
+  # Framework Startup ONLY
+  logger -t Shark "Framework Starting Menu System..."
+  if [ "$SSH_CONTEXT" = "true" ]; then
+    ssh_kbd_help
+    echo "sleep 10 && rm /tmp/interaction" | at now
+    btn_listen_for_user_input &
+    kbd_listen_for_user_input
+  else
+    echo "sleep 10 && rm /tmp/interaction" | at now
+    btn_listen_for_user_input
+  fi
+}
+
+parse_config() {
+  config_autoexec="$(GET_CONFIG_OPTION AUTOEXEC)"
+  config_autoexec_timeout="$(GET_CONFIG_OPTION AUTOEXEC_TIMEOUT)"
+  config_autoexec_timeout_flash="$(GET_CONFIG_OPTION AUTOEXEC_TIMEOUT_FLASH)"
+  config_armingmode_netmode="$(GET_CONFIG_OPTION ARMING_MODE_NETMODE)"
+  config_armingmode_ssh="$(GET_CONFIG_OPTION ARMING_MODE_SSH)"
+  config_ntp_enabled="$(GET_CONFIG_OPTION NTP_ENABLED)"
+  config_c2_enabled="$(GET_CONFIG_OPTION C2_ENABLED)"
+  config_theme="$(GET_CONFIG_OPTION THEME)"
+  config_backlight="$(GET_CONFIG_OPTION BACKLIGHT)"
+  config_ssh_enabled="$(GET_CONFIG_OPTION SSH_ENABLED)"
+}
+
+enforce_config_state() {
+  use_configured_theme # via shark_helpers
+  use_configured_backlight
+}
+
+swim() {
+  logger -t Shark "Framework starting..."
+  CREATE_SPINNER "Starting..."
+  update_menu_labels "full"
+
+  parse_config
+  logger -t Shark "Framework enforcing config.txt state..."
+  enforce_config_state
+
+  logger -t Shark "Framework waiting for Boot Complete..."
+  while [ ! -f /tmp/boot_complete ]; do
+    sleep 0.5
+  done
+
+  disk_space_check
+  LED B SLOW
+
+  STOP_SPINNER
+
+
+  ##################################
+  # SSH or restarted during runtime or autoexec disabled in config.txt
+  ##################################
+  if [ "$SSH_CONTEXT" = "true" ] || [ -f /tmp/autoexec_prompted ] || [ "$config_autoexec" = "FALSE" ]; then
+    logger -t Shark "Framework in SSH, restarted or autoexec disabled"
+    ARMING_MODE
+    exit 0 # early exit skip below
+  fi
+
+  ##################################
+  # Normal execution (first run, not via SSH)
+  ##################################
+  # Prompt to cancel payload autoexec
+  if [ "$config_autoexec" = "FALSE" ]; then
+    logger -t Shark "Autoexec disabled, entering arming mode"
+    ARMING_MODE
+  else
+    logger -t Shark "Framework prompting for autoexec cancellation..."
+    LED R FAST
+    if [ "$config_autoexec_timeout_flash" = "TRUE" ]; then
+      resp="$(COUNTDOWN "Run Payload" "$config_autoexec_timeout" "" true)"
+    else
+      resp="$(COUNTDOWN "Run Payload" "$config_autoexec_timeout" "" false)"
+    fi
+    LED B SLOW
+    touch /tmp/autoexec_prompted
+    # User has interacted cancelling autoexec of the default/armed payload
+    if [ "$resp" = "Cancelled" ]; then
+      logger -t Shark "Framework autoexec cancelled, entering arming mode"
+      ARMING_MODE
+    else
+      logger -t Shark "Framework autoexec, executing default payload"
+      # default no argument execute_payload will find correct payload to launch in /root/payload/
+      LED OFF
+      execute_payload
+      ARMING_MODE
+    fi
+  fi
+}
+
+swim

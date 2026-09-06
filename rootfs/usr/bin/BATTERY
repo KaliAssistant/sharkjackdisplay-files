@@ -1,0 +1,16 @@
+#!/bin/sh
+
+CHARGING_GPIO_LABEL="typec-power-in"
+
+check_gpio() {
+  state=$(cat "/sys/class/gpio/${1}/value")
+  echo "${state}"
+}
+
+charging=$(check_gpio $CHARGING_GPIO_LABEL)
+
+if [ "${charging}" -eq "1" ]; then
+  echo "Charging"
+else
+  echo "Discharging"
+fi

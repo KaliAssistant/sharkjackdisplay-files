@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Functionality not supported on this device, always return "switch1"
+
+echo "switch1"

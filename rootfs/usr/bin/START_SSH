@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# This script starts the OpenSSH Server on the device
+
+/etc/init.d/sshd start

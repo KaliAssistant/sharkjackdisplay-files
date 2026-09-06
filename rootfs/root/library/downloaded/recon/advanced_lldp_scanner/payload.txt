@@ -1,0 +1,131 @@
+#!/bin/bash
+# Title: Advanced LLDP Scanner
+# Author: Hak5Darren
+# Props: Korben
+# Description: Listens for an LLDP Neighbor. If found, displays basic or full results. Logs to loot.
+
+setup_payload(){
+  # Set defaults and start lldp daemon
+  LED SETUP
+  TIMEOUT=60
+  /etc/init.d/lldpd start
+}
+
+initialize_menu() {
+  # Basic menu structure
+  ADD_MENU_ITEM "Start" "lldp_check"
+  ADD_MENU_ITEM "Options" "menu_options"
+  ADD_MENU_ITEM "Quit" "EXIT_MENU"
+  ADD_SUBMENU_ITEM "menu_options" "Set Timeout" "set_timeout"
+  ADD_SUBMENU_ITEM "menu_options" "Done" "show_options"
+}
+
+set_timeout(){
+  # Prompt for timeout (Default 60 seconds, increment by 30 seconds)
+  TIMEOUT="$(SINGLE_NUMBER_PICKER "Timeout Seconds" "60" "30")"
+}
+
+show_options(){ 
+  # Display current options
+  ALERT "Timeout:\n$TIMEOUT\n\nPress ←" -1 false true; SELECT_MENU main_menu
+}
+
+lldp_check(){
+  # Setup Loot File
+  LOOT_DIR="/root/loot/lldp_neighbor"
+  mkdir -p $LOOT_DIR
+  COUNT=$(($(ls -l $LOOT_DIR/*.txt | wc -l)+1))
+  LOOT_FILE="$LOOT_DIR/lldp-$COUNT.txt"
+
+  # Setup Ethernet
+  CREATE_SPINNER "Starting DHCP"
+    NETMODE DHCP_CLIENT
+  STOP_SPINNER
+  WAIT_FOR_LINK
+  WAIT_FOR_IP
+
+  # Listen for LLDP Neighbor until timeout is reached in seconds
+  CREATE_SPINNER "Test $COUNT Waiting ${TIMEOUT}s for LLDP"
+    elapsed=0
+    while [ "$elapsed" -lt "$TIMEOUT" ]; do
+      dash_count="$(lldpctl | grep '^-*-$' | wc -l)"
+      if [ "$dash_count" -eq 3 ]; then
+        # If an LLDP Neighbor is found, set LED, create a loot file, parse it and add to payload log
+        LED FINISH
+        lldpctl -f keyvalue | sed 's/lldp.eth0.//g' > $LOOT_FILE
+        via="$(cat $LOOT_FILE | grep "via=" | sed 's/via=//g')"
+        chasis_local="$(cat $LOOT_FILE | grep "chassis.local=" | sed 's/chassis.local=//g')"
+        port_ifname="$(cat $LOOT_FILE | grep "port.ifname=" | sed 's/port.ifname=//g')"
+        ttl="TTL: $(cat $LOOT_FILE | grep "port.ttl=" | sed 's/port.ttl=//g')"
+        LOG " "
+        LOG "▀▄▀▄▀▄▀▄▀▄▀▄▀▄"
+        LOG "Scan $COUNT"
+        LOG " "
+        LOG "$via"
+        LOG "$chasis_local"
+        LOG "$port_ifname"
+        LOG "$ttl"
+        break
+      fi
+      sleep 1 && elapsed=$((elapsed + 1))
+    done
+  STOP_SPINNER
+
+  # Alert if neighbor was not found
+  if [ "$elapsed" -ge "$TIMEOUT" ]; then
+    LED FAIL
+    ALERT "LLDP Neighbor Not Found \n\nPress ←" -1
+  fi
+
+  # Prompt for results type if neighbor was found
+  if [ -f "$LOOT_FILE" ]; then
+    RESP="$(OPTION_DIALOG "Neighbor Found. View Results?" " Basic " " Full ")"
+      case $RESP in
+        " Basic ") basic_results ;;
+        " Full ") full_results ;;
+      esac
+  fi
+}
+
+basic_results(){
+  # Show basic results (mandatory LLDPDU fields)
+  ALERT "$via\n$chasis_local\n$port_ifname\n$ttl\nDone. Press ←" -1 false true
+}
+
+full_results(){
+  # Built a menu to display full results from key value pair log file
+  CLEAR_MENU "results"
+  CREATE_SPINNER "Loading..."
+  RESULTS="$(cat $LOOT_FILE)"
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    key="$(echo $line | awk -F= '{print $1}')"
+    value="$(echo $line | awk -F= '{print $2}')"
+    ADD_SUBMENU_ITEM "results" "$key" "results_menu_${key}"
+    if [ "${#value}" -gt 64 ]; then
+      # For entries with long values, display them one page at a time using ALERT
+      eval "
+        results_menu_${key}(){
+          ALERT \"${value:0:128}\" -1 false true
+          if [ \"${#value}\" -gt 128 ]; then ALERT \"${value:129:256}\" -1 false true; fi
+          if [ \"${#value}\" -gt 256 ]; then ALERT \"${value:257:384}\" -1 false true; fi
+          if [ \"${#value}\" -gt 384 ]; then ALERT \"${value:385:512}\" -1 false true; fi
+          if [ \"${#value}\" -gt 512 ]; then ALERT \"${value:513:640}\" -1 false true; fi
+          if [ \"${#value}\" -gt 640 ]; then ALERT \"${value:641:768}\" -1 false true; fi
+          if [ \"${#value}\" -gt 768 ]; then ALERT \"${value:769:896}\" -1 false true; fi
+          if [ \"${#value}\" -gt 896 ]; then ALERT \"${value:897:1024}\" -1 false true; fi
+      }"
+    else
+      # For short values, display them inside the submenu
+      ADD_SUBMENU_ITEM "results_menu_${key}" "$value" "noop"
+      ADD_SUBMENU_ITEM "results_menu_${key}" "Back" "Back"
+    fi
+  done <<< "$RESULTS"
+  ADD_SUBMENU_ITEM "results" "Back" "Back"
+  STOP_SPINNER
+  SELECT_MENU results
+}
+
+setup_payload
+initialize_menu
+START_MENU

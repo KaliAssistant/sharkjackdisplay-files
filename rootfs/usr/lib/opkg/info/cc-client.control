@@ -1,0 +1,11 @@
+Package: cc-client
+Version: sharkjackdisplay-1
+Depends: libc, libpthread, libstdcpp6, libcurl4, libopenssl3, libsqlite3-0, protobuf-lite
+Source: extra_feeds/hak5/utils/cc-client
+SourceName: cc-client
+License: Hak5
+Section: utils
+SourceDateEpoch: 1785433596
+Architecture: mipsel_24kc
+Installed-Size: 235268
+Description:  Hak5 Cloud C2 Client

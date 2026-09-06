@@ -1,0 +1,10 @@
+#!/bin/sh /etc/rc.common
+
+START=0
+
+start() {
+    echo -en "\033[?25l" > /dev/tty0
+    echo -en "\033[2J\033[H" > /dev/tty0
+    logger -t bootindicator "Boot Logo..."
+    cat /usr/lib/bootlogo/bootlogo.bmp > /dev/fb0
+}

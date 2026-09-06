@@ -1,0 +1,8 @@
+#!/bin/sh /etc/rc.common
+
+START=999
+
+start() {
+    logger -t FirstBootComplete "First Boot complete"
+    date > /tmp/first_boot_complete
+}

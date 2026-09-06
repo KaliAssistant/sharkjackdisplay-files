@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Enables NTP as a service to run on boot
+
+/etc/init.d/sysntpd enable
+/etc/init.d/sysntpd start

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Script used to start C2 Client from payloads
+
+if [ -f "/etc/device.config" ]; then
+  SYNC_TIME
+  /etc/init.d/cc-client start
+else
+  echo "No device.config found"
+  exit 1
+fi

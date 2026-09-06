@@ -1,0 +1,174 @@
+#!/bin/bash
+
+# This script is used by the framework to generate and run the menu system used to view payloads on the device
+
+# not intended for use within payloads
+
+source /usr/lib/shark_helpers
+disable_text_wrap
+
+cleanup() {
+  enable_text_wrap
+}
+
+trap cleanup EXIT;
+
+source /usr/lib/progress_bar_tools
+source /usr/lib/list_tools
+
+BASE_DIR="/root/library"
+
+calculate_total_items() {
+  find "$BASE_DIR" -type d | wc -l
+}
+
+is_payload_dir() {
+  local dir="$1"
+  [[ -f "$dir/payload.txt" || -f "$dir/payload.sh" || -f "$dir/payload" ]]
+}
+
+initialize_menu_system() {
+  CREATE_PROGRESS_BAR "Loading..."
+
+  local total_items=$(calculate_total_items)
+  local current_progress=0
+
+  for sub_dir in "$BASE_DIR"/*; do
+    if [ -d "$sub_dir" ]; then
+      sub_dir_name="$(basename "$sub_dir" | sed 's/[-_]/ /g')"
+      submenu_name="submenu_$sub_dir_name"
+
+      ADD_MENU_ITEM "$sub_dir_name" "$submenu_name"
+      initialize_subdir_menu "$submenu_name" "$sub_dir" "$total_items" current_progress
+    fi
+  done
+
+  ADD_MENU_ITEM "← Back" "EXIT_MENU"
+  SET_PROGRESS 100
+}
+
+initialize_subdir_menu() {
+  local submenu_name="$1"
+  local sub_dir_path="$2"
+  local total_items="$3"
+  local current_progress_var="$4"
+
+  local has_categories=0
+  local has_payloads=0
+
+  for item in "$sub_dir_path"/*; do
+    if [ -d "$item" ]; then
+      if is_payload_dir "$item"; then
+        # payload
+        has_payloads=1
+        payload_name="$(basename "$item" | sed 's/[-_]/ /g')"
+        payload_submenu="submenu_${submenu_name}_${payload_name}"
+
+        ADD_SUBMENU_ITEM "$submenu_name" "$payload_name" "$payload_submenu" "$item"
+        initialize_payload_menu "$payload_submenu" "$item"
+      else
+        # category
+        has_categories=1
+        category_name="$(basename "$item" | sed 's/[-_]/ /g')"
+        category_submenu="submenu_${submenu_name}_${category_name}"
+
+        ADD_SUBMENU_ITEM "$submenu_name" "$category_name" "$category_submenu" "$item"
+        initialize_submenu "$category_name" "$category_submenu" "$item" "$total_items" "$current_progress_var"
+      fi
+    fi
+  done
+
+  eval "$current_progress_var=$(( ${!current_progress_var} + 1 ))"
+  INCREMENT_PROGRESS $((100 * ${!current_progress_var} / total_items))
+
+  ADD_SUBMENU_ITEM "$submenu_name" "← Back"
+}
+
+initialize_submenu() {
+  local category_name="$1"
+  local submenu_name="$2"
+  local category_path="$3"
+  local total_items="$4"
+  local current_progress_var="$5"
+
+  for payload_dir in "$category_path"/*; do
+    if [ -d "$payload_dir" ] && is_payload_dir "$payload_dir"; then
+      payload_name="$(basename "$payload_dir" | sed 's/[-_]/ /g')"
+      payload_submenu_name="submenu_${submenu_name}_${payload_name}"
+
+      ADD_SUBMENU_ITEM "$submenu_name" "$payload_name" "$payload_submenu_name" "$payload_dir"
+      initialize_payload_menu "$payload_submenu_name" "$payload_dir"
+    fi
+  done
+
+  eval "$current_progress_var=$(( ${!current_progress_var} + 1 ))"
+  INCREMENT_PROGRESS $((100 * ${!current_progress_var} / total_items))
+
+  ADD_SUBMENU_ITEM "$submenu_name" "← Back"
+}
+
+initialize_payload_menu() {
+  local payload_submenu_name="$1"
+  local payload_path="$2"
+
+  ADD_SUBMENU_ITEM "$payload_submenu_name" "Run Payload" "start_payload_dialog" "$payload_path"
+  ADD_SUBMENU_ITEM "$payload_submenu_name" "Set as Default" "set_default_dialog" "$payload_path"
+
+  if [[ "$payload_path" == "$BASE_DIR/downloaded"* ]]; then
+    ADD_SUBMENU_ITEM "$payload_submenu_name" "Import Payload" "import_payload_dialog" "$payload_path"
+  fi
+
+  ADD_SUBMENU_ITEM "$payload_submenu_name" "Remove Payload" "remove_payload_dialog" "$payload_path"
+  ADD_SUBMENU_ITEM "$payload_submenu_name" "← Back" "EXIT_MENU"
+}
+
+start_payload_dialog() {
+  resp=$(CONFIRMATION_DIALOG "$SELECTED_ITEM" " Run ")
+  if [[ "$resp" == " Run " ]]; then
+    payload="${1:-$(find "${SELECTED_ITEM_DATA}"/payload* 2>/dev/null | tail -n1)}"
+    echo "$SELECTED_ITEM_DATA/$(basename "$payload")"
+    cleanup
+    exit 0
+  fi
+}
+
+set_default_dialog() {
+  resp=$(CONFIRMATION_DIALOG "Replace Default?" "Confirm")
+  if [[ "$resp" == "Confirm" ]]; then
+    resp=$(CONFIRMATION_DIALOG "This will replace /root/payload/" "Ok")
+    if [[ "$resp" == "Ok" ]]; then
+      ACTIVATE_PAYLOAD "$SELECTED_ITEM_DATA"
+      ALERT "Complete!" 2 false
+      cleanup
+      exit 0
+    fi
+  fi
+}
+
+remove_payload_dialog() {
+  resp=$(CONFIRMATION_DIALOG "Remove Payload?" "Remove")
+  if [[ "$resp" == "Remove" ]]; then
+    resp=$(CONFIRMATION_DIALOG "This cannot be undone" "Ok")
+    if [[ "$resp" == "Ok" ]]; then
+      rm -rf "$SELECTED_ITEM_DATA"
+      ALERT "Deleted!" 2 false
+      cleanup
+      exit 0
+    fi
+  fi
+}
+
+import_payload_dialog() {
+  resp=$(CONFIRMATION_DIALOG "Move to My Payloads?" "Import")
+  if [[ "$resp" == "Import" ]]; then
+    logger -t SharkPayloadMenu "Import Payload $SELECTED_ITEM_DATA"
+    IMPORT_PAYLOAD "$SELECTED_ITEM_DATA"
+    ALERT "Complete!" 2 false
+    cleanup
+    exit 0
+  fi
+}
+
+initialize_menu_system
+START_MENU
+

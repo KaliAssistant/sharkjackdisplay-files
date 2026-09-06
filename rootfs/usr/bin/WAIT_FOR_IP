@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# This script is used to wait until the device has obtained an IP address on eth0
+
+source /usr/lib/spinner_tools
+
+trap 'cleanup_and_exit 0' SIGINT SIGTERM EXIT
+
+cancellable="${1:-"false"}"
+INTERFACE="eth0"
+
+# exit early before starting spinner if we are already up
+IP=$(ip -4 addr show "$INTERFACE" | awk '/inet / {print $2}' | cut -d'/' -f1)
+if [[ -n "$IP" ]]; then
+  echo "$IP"
+  exit 0
+fi
+
+CREATE_SPINNER "Waiting for IP"
+
+cleanup_and_exit() {
+  STOP_SPINNER
+  rm /tmp/pause_rendering
+  [[ -n "$WAIT_PID" ]] && kill "$WAIT_PID" 2>/dev/null
+  [[ -n "$BTN_PID" ]] && kill "$BTN_PID" 2>/dev/null
+  killall dialog_button_listener 2>/dev/null
+  killall wait_for_cancel_menu 2>/dev/null
+  exit 1
+}
+
+wait_for_ip() {
+  while true; do
+    sleep 0.5
+    IP=$(ip -4 addr show "$INTERFACE" | awk '/inet / {print $2}' | cut -d'/' -f1)
+    if [[ -n "$IP" ]]; then
+      echo "$IP"
+      cleanup_and_exit 0
+    fi
+  done
+}
+
+handle_button() {
+  while true; do
+    button=$(/usr/sbin/dialog_button_listener)
+    echo "WAIT_FOR_IP" >> /tmp/pause_rendering
+    resp="$(wait_for_cancel_menu)"
+    if [ "$resp" = "Cancel" ]; then
+      logger -t Shark "BUTTON PRESSED: Cancelling wait for IP"
+      echo "Cancelled"
+      rm /tmp/pause_rendering
+      cleanup_and_exit 1
+    fi
+    rm /tmp/pause_rendering
+  done
+}
+
+if [[ "$cancellable" == "true" ]]; then
+  wait_for_ip &
+  WAIT_PID=$!
+
+  handle_button &
+  BTN_PID=$!
+
+  # Wait for either process to exit
+  wait -n "$WAIT_PID" "$BTN_PID"
+
+  cleanup_and_exit 0
+else
+  wait_for_ip
+  cleanup_and_exit 0
+fi
+

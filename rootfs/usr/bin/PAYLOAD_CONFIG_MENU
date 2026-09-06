@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# This script is used to generate and run a menu system displaying payload .cfg files for the current payload
+# see example payloads for usage
+
+source /usr/lib/shark_helpers
+source /usr/lib/list_tools
+source /usr/lib/progress_bar_tools
+
+CONFIG_DIR="${1-"$(pwd)"}"
+
+initialize_menu_system() {
+  CREATE_PROGRESS_BAR "Loading Configs"
+
+  local total_items=$(find "$CONFIG_DIR" -type f -name "*.cfg" | wc -l)
+  local current_progress=0
+
+  if [ "$total_items" -eq 0 ]; then
+    ADD_MENU_ITEM "No config files found" "EXIT_MENU"
+    SET_PROGRESS 100
+    return
+  fi
+
+  for cfg_file in "$CONFIG_DIR"/*.cfg; do
+    [[ -e "$cfg_file" ]] || continue
+    current_progress=$((current_progress + 1))
+    INCREMENT_PROGRESS $((100 * current_progress / total_items))
+
+    local cfg_name
+    cfg_name=$(basename "$cfg_file" .cfg)
+    local submenu_name="submenu_$cfg_name"
+
+    ADD_MENU_ITEM "$cfg_name" "$submenu_name" "$cfg_file"
+    initialize_config_menu "$submenu_name" "$cfg_file"
+    initialize_profile_menu "$cfg_file"
+  done
+
+  ADD_MENU_ITEM "← Back"
+  SET_PROGRESS 100
+}
+
+select_config() {
+  echo "$SELECTED_ITEM_DATA"
+  exit 0
+}
+
+set_default_config() {
+  resp=$(CONFIRMATION_DIALOG "Set as Default?" "Ok")
+  if [[ "$resp" == "Ok" ]]; then
+    cp "$SELECTED_ITEM_DATA" "$CONFIG_DIR/profile.cfg"
+    ALERT "Set as Default!" 1 false
+    exit 0
+  fi
+}
+
+delete_config() {
+  resp=$(CONFIRMATION_DIALOG "Remove Profile?" "Remove")
+  if [[ "$resp" == "Remove" ]]; then
+    resp=$(CONFIRMATION_DIALOG "This cannot be undone" "Ok")
+    if [[ "$resp" == "Ok" ]]; then
+      rm "$SELECTED_ITEM_DATA"
+      ALERT "Deleted!" 1 false
+      exit 0
+    fi
+  fi
+}
+
+initialize_profile_menu() {
+  local config_path="$1"
+  local profile_menu="profile_$(basename "$config_path" .cfg)"
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    key="${line%% *}"
+    value="${line#* }"
+    ADD_SUBMENU_ITEM "$profile_menu" "$key" "ALERT '$value' -1 false"
+  done < "$config_path"
+
+  ADD_SUBMENU_ITEM "$profile_menu" "← Back"
+}
+
+initialize_config_menu() {
+  local menu_name="$1"
+  local config_path="$2"
+
+  ADD_SUBMENU_ITEM "$menu_name" "Use Profile" "select_config" "$config_path"
+  ADD_SUBMENU_ITEM "$menu_name" "Set as Default" "set_default_config" "$config_path"
+  ADD_SUBMENU_ITEM "$menu_name" "Delete Profile" "delete_config" "$config_path"
+  ADD_SUBMENU_ITEM "$menu_name" "Show Profile" "profile_$(basename "$config_path" .cfg)"
+  ADD_SUBMENU_ITEM "$menu_name" "← Back"
+}
+
+initialize_menu_system
+START_MENU
+

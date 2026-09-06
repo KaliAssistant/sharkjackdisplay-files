@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Makes the screen full brightness
+
+echo 1 > /sys/class/gpio/screen-power/value

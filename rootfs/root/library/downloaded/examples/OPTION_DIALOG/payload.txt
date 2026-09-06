@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# OPTION_DIALOG is like CONFIRMATION_DIALOG except you can give two options
+
+SCREEN_WRITE "Asking..."
+
+sleep 1
+
+resp=$(OPTION_DIALOG "Hak The Planet?" "False" "True")
+SCREEN_WRITE "Responded"
+
+if [ "$resp" = "True" ]; then
+  SCREEN_WRITE "Hak the Planet"
+else
+  SCREEN_WRITE " :( "
+fi
+
+SCREEN_WRITE "Asking..."
+
+sleep 1
+
+resp=$(OPTION_DIALOG "When?" "Now" "Later")
+
+SCREEN_WRITE "Responded"
+
+SCREEN_WRITE "Done"

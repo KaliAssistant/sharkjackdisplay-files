@@ -1,0 +1,52 @@
+#!/bin/bash
+
+print_help() {
+    echo "Hak5 Shark Jack Display Help"
+    echo "===================="
+
+    echo "FOR FULL HELP VISIT docs.hak5.org"
+
+    echo "Util Commands"
+    echo "===================="
+    echo "HELP              - List Shark Jack helpers and commands"
+    echo "ACTIVATE          - Activate a payload"
+    echo "ACTIVATE_PAYLOAD  - Alias for ACTIVATE"
+    echo "IMPORT_PAYLOAD    - Copy a payload to my_payloads"
+    echo "LIST              - List the local payload library"
+    echo "LIST_PAYLOADS     - Alias for LIST"
+    echo "UPDATE_PAYLOADS   - Syncronize local payload library with remote library"
+    echo "UPDATE_FIRMWARE   - Check for and install available firmware updates"
+    echo "FACTORY_RESET     - Performe a factory reset"
+    echo "RESET_CONFIG      - Reset config.txt"
+    echo "VALIDATE_CONFIG   - Validate config.txt"
+    echo "SYNC_TIME         - Sync time via NTP"
+
+    echo "Payload Commands"
+    echo "===================="
+    echo "LED                 - Configure the LED"
+    echo "SCREEN_WRITE        - Write to payload log"
+    echo "ALERT               - Show a dismissable Alert to the user"
+    echo "BLOCKING_ALERT      - Show an Alert to the user"
+    echo "C2CONNECT           - Connect to Cloud C2"
+    echo "C2DISCONNECT        - Disconnect from Cloud C2"
+    echo "CLEAR_SCREEN        - Blank the screen"
+    echo "CONFIRMATION_DIALOG - Prompt user for confirmation"
+    echo "COUNTDOWN           - Display a countdown"
+    echo "IP_PICKER           - Display an IP Picker"
+    echo "LIST_PICKER         - Prompt user to choose a value from a supplied list"
+    echo "NETMODE             - Set the Network Mode for the device"
+    echo "NUMBER_PICKER       - Prompt user to pick a number(s)"
+    echo "OPTION_DIALOG       - Prompt user to choose from two options"
+    echo "SINGLE_NUMBER_PICKER - Prompt user select a single number"
+    echo "WAIT_FOR_BUTTON     - Wait for button press"
+    echo "WAIT_FOR_IP         - Wait for Shark interface to obtain an IP"
+    echo "WAIT_FOR_LINK       - Wait for Shark interface to obtain ethernet link"
+    echo "WAIT_FOR_NO_LINK    - Wait for Shark interface to lose ethernet link"
+
+
+    echo "FOR FULL HELP VISIT docs.hak5.org"
+
+    echo " "
+}
+
+print_help

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# This script is used to set config.txt options
+# not intended for use within payloads, take caution if doing so
+
+param="$1"
+value="$2"
+config_file="/root/config.txt"
+
+logger -t SharkConfig "Set Config Option: $1 $2"
+if [[ ! -f "$config_file" ]]; then
+    VALIDATE_CONFIG # will generate new default config
+fi
+
+if grep -qE "^${param} " "$config_file"; then
+    sed -i -E "s|^(${param} ).*|\1${value}|" "$config_file"
+else
+    echo "${param}: ${value}" >> "$config_file"
+fi
+
+if [ "$1" = "THEME" ]; then
+  echo "$2" > /tmp/theme
+fi

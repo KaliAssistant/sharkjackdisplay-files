@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# This script is used to wait for new clients or a specific client
+
+# This script is AUTOMATICALLY sourced by execute_payload
+# making the WAIT_FOR_CLIENT function available to all payloads
+
+# Default Usage (any new client)
+# WAIT_FOR_CLIENT
+
+# Target usage
+# WAIT_FOR_CLIENT DE:AD:BE:EF:CA:FE
+
+WAIT_FOR_CLIENT() {
+  LEASES_FILE="/var/dhcp.leases"
+  TARGET="$1"
+
+  if [[ -z "$TARGET" ]]; then
+      wait_for_any
+  else
+      wait_for_target "$TARGET"
+  fi
+}
+
+wait_for_any() {
+  source /usr/lib/spinner_tools
+  CREATE_SPINNER "Awaiting Client"
+  while true; do
+    log_line=$(logread -t | grep DHCPACK | tail -n1)
+    log_epoch=$(echo "$log_line" | awk '{gsub(/\[|\]/, "", $6); print int($6)}')
+    now_epoch=$(date +%s)
+    diff=$((now_epoch - log_epoch))
+
+    if [ "$diff" -ge 0 ] && [ "$diff" -le 30 ]; then
+      STOP_SPINNER
+      CLIENT_IP=$(echo "$log_line" | awk '{print $10}')
+      CLIENT_MAC=$(echo "$log_line" | awk '{print $11}' | sed 's/://g')
+      CLIENT_HOSTNAME=$(echo "$log_line" | awk '{print $12}')
+      break
+    fi
+    sleep 1
+  done
+}
+
+wait_for_target() {
+  local target="$1"
+  CREATE_SPINNER "Awaiting Client"
+  while true; do
+    if grep -qE "(^|\s)$target(\s|$)" "$LEASES_FILE"; then
+      echo "Client $target has received a lease!"
+      grep -E "(^|\s)$target(\s|$)" "$LEASES_FILE"
+      STOP_SPINNER
+      break
+    fi
+    sleep 1
+  done
+}
